@@ -11,7 +11,7 @@ import (
 var (
 	/// Config
 	Dsn        = "root:@tcp(localhost:4000)/test?charset=utf8"
-	Round uint = 100
+	Round uint = 1
 )
 
 func main() {

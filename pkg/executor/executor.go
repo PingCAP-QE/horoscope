@@ -67,8 +67,5 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []sql.Result, er
 
 func NewExecutor(dsn string) (Executor, error) {
 	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return nil, err
-	}
-	return &MySQLExecutor{db: db}, nil
+	return &MySQLExecutor{db: db}, err
 }

@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
-	"github.com/go-sql-driver/mysql"
-	"github.com/pingcap/tidb/errno"
+	"log"
 	"time"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/model"
+	"github.com/pingcap/tidb/errno"
 )
 
 var (
@@ -59,6 +60,7 @@ func (h *Horoscope) Plan(node ast.StmtNode, planId int64) (string, error) {
 }
 
 func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, list []*sql.Rows, err error) {
+	log.Printf("query(%s)", query)
 	start := time.Now()
 	list, err = h.exec.Query(query, round)
 	dur = time.Since(start)
@@ -100,8 +102,10 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		}
 
 		dur, list, err = h.QueryWithTime(round, plan)
+		log.Printf("sql(%s), cost: %d us", plan, dur.Microseconds())
 
 		if err != nil {
+			log.Printf("err: %s", err.Error())
 			if planOutOfRange(err) {
 				err = verifyQueryResult(originList, lists)
 			}
