@@ -10,8 +10,8 @@ import (
 type (
 	QueryMode uint8
 	Executor  interface {
-		Query(query string, round uint) ([]*sql.Rows, error)
-		Exec(query string, round uint) ([]sql.Result, error)
+		Query(query string, round uint) ([]Rows, error)
+		Exec(query string, round uint) ([]Result, error)
 	}
 
 	MySQLExecutor struct {
@@ -19,8 +19,8 @@ type (
 	}
 )
 
-func (e *MySQLExecutor) Query(query string, round uint) (rowsList []*sql.Rows, err error) {
-	rowsList = make([]*sql.Rows, 0, round)
+func (e *MySQLExecutor) Query(query string, round uint) (rowsList []Rows, err error) {
+	rowsList = make([]Rows, 0, round)
 	tx, err := e.db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
 	defer func() {
 		err = tx.Rollback()
@@ -31,18 +31,24 @@ func (e *MySQLExecutor) Query(query string, round uint) (rowsList []*sql.Rows, e
 
 	var i uint
 	for i = 0; i < round; i++ {
-		var rows *sql.Rows
-		rows, err = tx.Query(query)
+		var data *sql.Rows
+		var row Rows
+		data, err = tx.Query(query)
 		if err != nil {
 			return
 		}
-		rowsList = append(rowsList, rows)
+
+		row, err = NewRows(data)
+		if err != nil {
+			return
+		}
+		rowsList = append(rowsList, row)
 	}
 	return
 }
 
-func (e *MySQLExecutor) Exec(query string, round uint) (results []sql.Result, err error) {
-	results = make([]sql.Result, 0, round)
+func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err error) {
+	results = make([]Result, 0, round)
 	var i uint
 	for i = 0; i < round; i++ {
 		var tx *sql.Tx
@@ -51,11 +57,18 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []sql.Result, er
 			return
 		}
 
-		var result sql.Result
-		result, err = tx.Exec(query)
+		var data sql.Result
+		var result Result
+		data, err = tx.Exec(query)
 		if err != nil {
 			return
 		}
+
+		result, err = NewResult(data)
+		if err != nil {
+			return
+		}
+
 		results = append(results, result)
 		err = tx.Rollback()
 		if err != nil {

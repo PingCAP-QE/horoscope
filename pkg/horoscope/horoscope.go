@@ -2,8 +2,8 @@ package horoscope
 
 import (
 	"bytes"
-	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -59,7 +59,7 @@ func (h *Horoscope) Plan(node ast.StmtNode, planId int64) (string, error) {
 	return bufferOut(node)
 }
 
-func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, list []*sql.Rows, err error) {
+func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, list []executor.Rows, err error) {
 	log.Printf("query(%s)", query)
 	start := time.Now()
 	list, err = h.exec.Query(query, round)
@@ -88,13 +88,13 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		Plans:  make([]BenchResult, 0),
 	}
 
-	lists := make([][]*sql.Rows, 0)
+	lists := make([][]executor.Rows, 0)
 
 	var id int64 = 0
 	for ; ; id++ {
 		var plan string
 		var dur time.Duration
-		var list []*sql.Rows
+		var list []executor.Rows
 
 		plan, err = h.Plan(query, id)
 		if err != nil {
@@ -142,7 +142,23 @@ func planOutOfRange(err error) bool {
 	return ok && mysqlErr.Number == errno.ErrInternal
 }
 
-// TODO: verify query result
-func verifyQueryResult(origin []*sql.Rows, lists [][]*sql.Rows) error {
-	return nil
+func verifyQueryResult(origin []executor.Rows, lists [][]executor.Rows) (err error) {
+	for _, list := range lists {
+		if !verifyList(origin, list) {
+			return errors.New(fmt.Sprintf("query results verification fails: origin(%#v), result(%#v", origin, list))
+		}
+	}
+	return
+}
+
+func verifyList(one, other []executor.Rows) bool {
+	if len(one) != len(other) {
+		return false
+	}
+	for i, column := range one {
+		if !column.Equal(other[i]) {
+			return false
+		}
+	}
+	return true
 }
