@@ -5,7 +5,8 @@ go 1.13
 require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/protobuf v1.4.2 // indirect
-	github.com/pingcap/parser v3.1.1+incompatible
+	github.com/pingcap/go-tpc v1.0.3 // indirect
+	github.com/pingcap/parser v0.0.0-20200612092132-17a1160e5a81
 	github.com/pingcap/tidb v2.0.11+incompatible
 	github.com/pingcap/tipb v0.0.0-20200610045017-b69a98cfcf6b // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect

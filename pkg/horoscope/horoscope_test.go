@@ -11,7 +11,7 @@ import (
 )
 
 func TestHoroscope_Plan(t *testing.T) {
-	stmts, warns, err := parser.New().Parse("SELECT /*+ nth_plan(1) */ * FROM t", "", "")
+	stmts, warns, err := parser.New().Parse("SELECT /*+ NTH_PLAN(1) */ * FROM t", "", "")
 	assert.Nil(t, err)
 	assert.Empty(t, warns)
 	assert.Len(t, stmts, 1)
