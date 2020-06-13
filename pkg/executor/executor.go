@@ -19,60 +19,61 @@ type (
 	}
 )
 
-func (e *MySQLExecutor) Query(query string, round uint) (rowsList []Rows, err error) {
-	rowsList = make([]Rows, 0, round)
-	tx, err := e.db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
-	defer func() {
-		err = tx.Rollback()
-	}()
+func (e *MySQLExecutor) EnterTx(options *sql.TxOptions, task func(tx *sql.Tx) error) (err error) {
+	tx, err := e.db.BeginTx(context.Background(), options)
 	if err != nil {
-		return
+		return err
 	}
-
-	var i uint
-	for i = 0; i < round; i++ {
-		var data *sql.Rows
-		var row Rows
-		data, err = tx.Query(query)
-		if err != nil {
-			return
+	defer func() {
+		rollbackError := tx.Rollback()
+		if err == nil {
+			err = rollbackError
 		}
+	}()
 
-		row, err = NewRows(data)
-		if err != nil {
-			return
+	return task(tx)
+}
+
+func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
+	rowsList := make([]Rows, 0, round)
+	err := e.EnterTx(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead}, func(tx *sql.Tx) error {
+		var i uint
+		for i = 0; i < round; i++ {
+			data, err := tx.Query(query)
+			if err != nil {
+				return err
+			}
+
+			row, err := NewRows(data)
+			if err != nil {
+				return err
+			}
+			rowsList = append(rowsList, row)
 		}
-		rowsList = append(rowsList, row)
-	}
-	return
+		return nil
+	})
+	return rowsList, err
 }
 
 func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err error) {
 	results = make([]Result, 0, round)
 	var i uint
 	for i = 0; i < round; i++ {
-		var tx *sql.Tx
-		tx, err = e.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
-		if err != nil {
-			return
-		}
+		err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sql.Tx) error {
+			data, err := tx.Exec(query)
+			if err != nil {
+				return err
+			}
 
-		var data sql.Result
-		var result Result
-		data, err = tx.Exec(query)
+			result, err := NewResult(data)
+			if err != nil {
+				return err
+			}
+			results = append(results, result)
+			return nil
+		})
 		if err != nil {
-			return
-		}
-
-		result, err = NewResult(data)
-		if err != nil {
-			return
-		}
-
-		results = append(results, result)
-		err = tx.Rollback()
-		if err != nil {
-			return
+			break
 		}
 	}
 	return
