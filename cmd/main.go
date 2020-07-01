@@ -45,8 +45,16 @@ func main() {
 		if results == nil {
 			break
 		}
-		for _, result := range append(results.Plans, results.Origin) {
-			log.Printf("SQL(%s), Round: %d, Cost: %d us", result.Sql, result.Round, result.Cost.Microseconds())
+		for _, result := range results.Plans {
+			if result.Cost < results.Origin.Cost {
+				log.Fatalf(
+					"Bad plan %dms < %dms:\n`%s`\n runs slower than\n`%s`\n",
+					result.Cost.Milliseconds(),
+					results.Origin.Cost.Milliseconds(),
+					result.Sql,
+					results.Origin.Cost,
+				)
+			}
 		}
 	}
 }

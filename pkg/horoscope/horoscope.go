@@ -101,31 +101,31 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		Plans:  make([]BenchResult, 0),
 	}
 
-	lists := make([][]executor.Rows, 0)
+	rowsSet := make([][]executor.Rows, 0)
 
-	var id int64 = 0
+	var id int64 = 1
 	for ; ; id++ {
 		var plan string
 		var dur time.Duration
-		var list []executor.Rows
+		var rows []executor.Rows
 
 		plan, err = h.Plan(query, id)
 		if err != nil {
 			return
 		}
 
-		dur, list, err = h.QueryWithTime(round, plan)
+		dur, rows, err = h.QueryWithTime(round, plan)
 		log.Printf("sql(%s), cost: %d us", plan, dur.Microseconds())
 
 		if err != nil {
 			log.Printf("err: %s", err.Error())
 			if planOutOfRange(err) {
-				err = verifyQueryResult(originList, lists)
+				err = verifyQueryResult(originList, rowsSet)
 			}
 			return
 		}
 
-		lists = append(lists, list)
+		rowsSet = append(rowsSet, rows)
 		results.Plans = append(results.Plans, BenchResult{Round: round, Sql: plan, Cost: dur})
 	}
 }
