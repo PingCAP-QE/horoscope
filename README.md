@@ -13,6 +13,12 @@ horoscope is an optimizer inspector for DBMS.
 2. Initialize TCPH Database
 
     Recommand [go-tpc](https://github.com/pingcap/go-tpc).
+    ```bash
+    git clone https://github.com/pingcap/go-tpc
+    cd go-tpc
+    make
+    ./bin/go-tpc tpch --sf=1 prepare
+    ```
 
 3. Build Horoscope
 
