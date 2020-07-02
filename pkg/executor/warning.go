@@ -16,8 +16,10 @@ package executor
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/pingcap/tidb/errno"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -36,5 +38,15 @@ func Warning(row Row) error {
 		"msg":  row[2],
 	}).Debug("sql warning")
 
-	return &mysql.MySQLError{Number: uint16(code), Message: row[2]}
+	err = &mysql.MySQLError{Number: uint16(code), Message: row[2]}
+	if PlanOutOfRange(err) {
+		return err
+	} else {
+		return nil
+	}
+}
+
+func PlanOutOfRange(err error) bool {
+	mysqlErr, ok := err.(*mysql.MySQLError)
+	return ok && mysqlErr.Number == errno.ErrUnknown && strings.Contains(mysqlErr.Message, "nth_plan")
 }

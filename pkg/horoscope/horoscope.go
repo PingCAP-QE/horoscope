@@ -17,17 +17,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 
-	"github.com/go-sql-driver/mysql"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/model"
-	"github.com/pingcap/tidb/errno"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -70,7 +67,7 @@ func (h *Horoscope) Plan(node ast.StmtNode, planId int64) (string, error) {
 	default:
 		return "", errors.New("unsupported statement")
 	}
-	return bufferOut(node)
+	return BufferOut(node)
 }
 
 func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, list []executor.Rows, err error) {
@@ -90,7 +87,7 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		return
 	}
 
-	originQuery, err := bufferOut(query)
+	originQuery, err := BufferOut(query)
 	if err != nil {
 		return
 	}
@@ -130,7 +127,7 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		}).Infof("complete execution plan%d", id)
 
 		if err != nil {
-			if PlanOutOfRange(err) {
+			if executor.PlanOutOfRange(err) {
 				err = verifyQueryResult(originList, rowsSet)
 			}
 			return
@@ -141,7 +138,7 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 	}
 }
 
-func bufferOut(node ast.Node) (string, error) {
+func BufferOut(node ast.Node) (string, error) {
 	out := new(bytes.Buffer)
 	err := node.Restore(format.NewRestoreCtx(format.RestoreStringDoubleQuotes, out))
 	if err != nil {
@@ -159,11 +156,6 @@ func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
 		}
 	}
 	return nil
-}
-
-func PlanOutOfRange(err error) bool {
-	mysqlErr, ok := err.(*mysql.MySQLError)
-	return ok && mysqlErr.Number == errno.ErrUnknown && strings.Contains(mysqlErr.Message, "nth_plan")
 }
 
 func verifyQueryResult(origin []executor.Rows, lists [][]executor.Rows) (err error) {
