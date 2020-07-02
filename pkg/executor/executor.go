@@ -18,7 +18,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
 	_ "github.com/go-sql-driver/mysql"
+	log "github.com/sirupsen/logrus"
 )
 
 type (
@@ -162,5 +164,10 @@ func GetHints(tx *sql.Tx, query string) (hints Hints, err error) {
 		return
 	}
 	hints = NewHints(rows[0][0])
+
+	log.WithFields(log.Fields{
+		"query": query,
+		"hints": hints,
+	}).Debug("hints of query")
 	return
 }

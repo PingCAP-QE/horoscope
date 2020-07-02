@@ -14,7 +14,10 @@
 package main
 
 import (
-	"log"
+	"flag"
+	"os"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
@@ -23,12 +26,19 @@ import (
 
 var (
 	/// Config
-	Dsn        = "root:@tcp(localhost:4000)/test?charset=utf8"
-	Round uint = 1
+	dsn           = flag.String("d", "root:@tcp(localhost:4000)/test?charset=utf8", "dsn of target db for testing")
+	round         = flag.Uint("r", 1, "execution rounds of each query")
+	jsonFormatter = flag.Bool("j", true, "format log json formatter")
+	logFile       = flag.String("f", "", "path of file to store log")
+	verbose       = flag.Bool("v", false, "set log level to info")
+	verbosePlus   = flag.Bool("vv", false, "set log level to debug")
 )
 
 func main() {
-	exec, err := executor.NewExecutor(Dsn)
+	flag.Parse()
+	setupLogger()
+
+	exec, err := executor.NewExecutor(*dsn)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -37,7 +47,7 @@ func main() {
 	scope := horoscope.NewHoroscope(exec, gen)
 
 	for {
-		results, err := scope.Step(Round)
+		results, err := scope.Step(*round)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -52,15 +62,42 @@ func main() {
 					panic(err.Error())
 				}
 				if !same {
-					log.Fatalf(
-						"Bad plan %dms < %dms:\n`%s`\n runs slower than\n`%s`\n",
+					log.WithFields(log.Fields{
+						"query":       results.Origin.Sql,
+						"better plan": result.Sql,
+					}).Errorf(
+						"choose wrong plan(%dms < %dms)",
 						result.Cost.Milliseconds(),
 						results.Origin.Cost.Milliseconds(),
-						results.Origin.Sql,
-						result.Sql,
 					)
 				}
 			}
 		}
+	}
+}
+
+func setupLogger() {
+	log.SetLevel(log.WarnLevel)
+	if *jsonFormatter {
+		log.SetFormatter(&log.JSONFormatter{})
+	}
+
+	if *verbose {
+		log.SetLevel(log.InfoLevel)
+	}
+
+	if *verbosePlus {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	if *logFile != "" {
+		file, err := os.Open(*logFile)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"err":  err.Error(),
+				"path": *logFile,
+			}).Fatalln("fail to open file")
+		}
+		log.SetOutput(file)
 	}
 }

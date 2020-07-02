@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/tidb/errno"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -74,7 +74,10 @@ func (h *Horoscope) Plan(node ast.StmtNode, planId int64) (string, error) {
 }
 
 func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, list []executor.Rows, err error) {
-	log.Printf("query(%s)", query)
+	log.WithFields(log.Fields{
+		"query": query,
+		"round": round,
+	}).Debug("query with time")
 	start := time.Now()
 	list, err = h.exec.Query(query, round)
 	dur = time.Since(start)
@@ -97,6 +100,11 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		return
 	}
 
+	log.WithFields(log.Fields{
+		"query": originQuery,
+		"cost":  fmt.Sprintf("%dms", originDur.Milliseconds()),
+	}).Info("complete origin query")
+
 	results = &BenchResults{
 		Origin: BenchResult{Round: round, Cost: originDur, Sql: originQuery},
 		Plans:  make([]BenchResult, 0),
@@ -116,10 +124,12 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		}
 
 		dur, rows, err = h.QueryWithTime(round, plan)
-		log.Printf("sql(%s), cost: %d us", plan, dur.Microseconds())
+		log.WithFields(log.Fields{
+			"query": plan,
+			"cost":  fmt.Sprintf("%dms", dur.Milliseconds()),
+		}).Infof("complete execution plan%d", id)
 
 		if err != nil {
-			log.Printf("err: %s", err.Error())
 			if planOutOfRange(err) {
 				err = verifyQueryResult(originList, rowsSet)
 			}

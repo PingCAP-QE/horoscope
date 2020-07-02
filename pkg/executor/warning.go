@@ -2,9 +2,10 @@ package executor
 
 import (
 	"errors"
-	"github.com/go-sql-driver/mysql"
-	"log"
 	"strconv"
+
+	"github.com/go-sql-driver/mysql"
+	log "github.com/sirupsen/logrus"
 )
 
 func Warning(row Row) error {
@@ -17,7 +18,10 @@ func Warning(row Row) error {
 		return err
 	}
 
-	log.Printf("warning: %d %s", code, row[2])
+	log.WithFields(log.Fields{
+		"code": code,
+		"msg":  row[2],
+	}).Debug("sql warning")
 
 	return &mysql.MySQLError{Number: uint16(code), Message: row[2]}
 }

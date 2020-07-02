@@ -14,11 +14,10 @@
 package generator
 
 import (
-	"log"
-
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	_ "github.com/pingcap/tidb/types/parser_driver"
+	log "github.com/sirupsen/logrus"
 )
 
 type TpcHGenerator struct {
@@ -36,12 +35,18 @@ func (g *TpcHGenerator) Query() ast.StmtNode {
 
 	if err != nil || len(warns) > 0 || len(stmt) != 1 {
 		if err != nil {
-			log.Fatalf("Fail to parse sql(%s): %s", queries[g.index], err.Error())
+			log.WithFields(log.Fields{
+				"query": queries[g.index],
+				"err":   err.Error(),
+			}).Fatal("Fails to parse query")
 		}
 
 		if len(warns) > 0 {
 			for _, warn := range warns {
-				log.Printf("Warns in parsing sql(%s): %s", queries[g.index], warn.Error())
+				log.WithFields(log.Fields{
+					"query":   queries[g.index],
+					"warning": warn.Error(),
+				}).Warn("Warns in parsing query")
 			}
 		}
 
