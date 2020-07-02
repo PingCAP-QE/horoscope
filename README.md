@@ -14,7 +14,7 @@ horoscope is an optimizer inspector for DBMS.
 
     Recommand [go-tpc](https://github.com/pingcap/go-tpc).
     ```bash
-    git clone https://github.com/pingcap/go-tpc
+    git clone https://github.com/pingcap/go-tpc.git
     cd go-tpc
     make
     ./bin/go-tpc tpch --sf=1 prepare
