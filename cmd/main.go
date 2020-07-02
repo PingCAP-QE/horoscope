@@ -20,8 +20,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
-	"github.com/chaos-mesh/horoscope/pkg/generator"
-	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 )
 
 var (
@@ -33,9 +31,7 @@ var (
 	verbose       string
 
 	/// components
-	exec  executor.Executor
-	gen   generator.Generator
-	scope *horoscope.Horoscope
+	exec executor.Executor
 )
 
 func main() {
@@ -54,26 +50,26 @@ func main() {
 				Name:        "round",
 				Aliases:     []string{"r"},
 				Value:       1,
-				Usage:       "execution `ROUND` of each query",
+				Usage:       "Execution `ROUND` of each query",
 				Destination: &round,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Aliases:     []string{"j"},
 				Value:       false,
-				Usage:       "format log json formatter",
+				Usage:       "Format log with json formatter",
 				Destination: &jsonFormatter,
 			},
 			&cli.StringFlag{
 				Name:        "file",
 				Aliases:     []string{"f"},
-				Usage:       "path of `FILE` to store log",
+				Usage:       "`FILE` to store log",
 				Destination: &logFile,
 			},
 			&cli.StringFlag{
 				Name:        "verbose",
 				Aliases:     []string{"v"},
-				Value:       "warn",
+				Value:       "info",
 				Usage:       "`LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
 				Destination: &verbose,
 			},
@@ -87,6 +83,7 @@ func main() {
 		},
 		Commands: cli.Commands{
 			tpchCommand,
+			queryCommand,
 		},
 	}
 

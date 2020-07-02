@@ -28,6 +28,7 @@ type (
 	Executor  interface {
 		Query(query string, round uint) ([]Rows, error)
 		Exec(query string, round uint) ([]Result, error)
+		GetHints(query string) (Hints, error)
 		IsSamePlan(q1, q2 string) (equal bool, err error)
 	}
 
@@ -111,11 +112,11 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 func (e *MySQLExecutor) IsSamePlan(q1, q2 string) (equal bool, err error) {
 	var h1, h2 Hints
 	err = e.EnterTx(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) (err error) {
-		h1, err = GetHints(tx, q1)
+		h1, err = getHints(tx, q1)
 		if err != nil {
 			return
 		}
-		h2, err = GetHints(tx, q2)
+		h2, err = getHints(tx, q2)
 		return
 	})
 	if err != nil {
@@ -124,6 +125,14 @@ func (e *MySQLExecutor) IsSamePlan(q1, q2 string) (equal bool, err error) {
 	h1.RemoveNTHPlan()
 	h2.RemoveNTHPlan()
 	equal = h1.Equal(h2)
+	return
+}
+
+func (e *MySQLExecutor) GetHints(query string) (hints Hints, err error) {
+	_ = e.EnterTx(nil, func(tx *sql.Tx) error {
+		hints, err = getHints(tx, query)
+		return nil
+	})
 	return
 }
 
@@ -149,7 +158,7 @@ func queryWarning(tx *sql.Tx) (err error) {
 	return
 }
 
-func GetHints(tx *sql.Tx, query string) (hints Hints, err error) {
+func getHints(tx *sql.Tx, query string) (hints Hints, err error) {
 	explanation := fmt.Sprintf("explain format = 'hint' %s", query)
 	rawRows, err := tx.Query(explanation)
 	if err != nil {

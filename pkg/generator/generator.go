@@ -19,4 +19,10 @@ type (
 	Generator interface {
 		Query() ast.StmtNode
 	}
+
+	GeneratorFunc func() ast.StmtNode
 )
+
+func (g GeneratorFunc) Query() ast.StmtNode {
+	return g()
+}

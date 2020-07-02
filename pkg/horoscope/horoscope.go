@@ -130,7 +130,7 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		}).Infof("complete execution plan%d", id)
 
 		if err != nil {
-			if planOutOfRange(err) {
+			if PlanOutOfRange(err) {
 				err = verifyQueryResult(originList, rowsSet)
 			}
 			return
@@ -161,7 +161,7 @@ func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
 	return nil
 }
 
-func planOutOfRange(err error) bool {
+func PlanOutOfRange(err error) bool {
 	mysqlErr, ok := err.(*mysql.MySQLError)
 	return ok && mysqlErr.Number == errno.ErrUnknown && strings.Contains(mysqlErr.Message, "nth_plan")
 }
