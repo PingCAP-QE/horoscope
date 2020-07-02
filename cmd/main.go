@@ -14,10 +14,10 @@
 package main
 
 import (
-	"flag"
 	"os"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
@@ -26,78 +26,94 @@ import (
 
 var (
 	/// Config
-	dsn           = flag.String("d", "root:@tcp(localhost:4000)/test?charset=utf8", "dsn of target db for testing")
-	round         = flag.Uint("r", 1, "execution rounds of each query")
-	jsonFormatter = flag.Bool("j", true, "format log json formatter")
-	logFile       = flag.String("f", "", "path of file to store log")
-	verbose       = flag.Bool("v", false, "set log level to info")
-	verbosePlus   = flag.Bool("vv", false, "set log level to debug")
+	dsn           string
+	round         uint
+	jsonFormatter bool
+	logFile       string
+	verbose       string
+
+	/// components
+	exec  executor.Executor
+	gen   generator.Generator
+	scope *horoscope.Horoscope
 )
 
 func main() {
-	flag.Parse()
-	setupLogger()
-
-	exec, err := executor.NewExecutor(*dsn)
-	if err != nil {
-		panic(err.Error())
+	app := &cli.App{
+		Name:  "horoscope",
+		Usage: "An optimizer inspector for DBMS",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "dsn",
+				Aliases:     []string{"d"},
+				Value:       "root:@tcp(localhost:4000)/test?charset=utf8",
+				Usage:       "`DSN` of target db",
+				Destination: &dsn,
+			},
+			&cli.UintFlag{
+				Name:        "round",
+				Aliases:     []string{"r"},
+				Value:       1,
+				Usage:       "execution `ROUND` of each query",
+				Destination: &round,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Aliases:     []string{"j"},
+				Value:       false,
+				Usage:       "format log json formatter",
+				Destination: &jsonFormatter,
+			},
+			&cli.StringFlag{
+				Name:        "file",
+				Aliases:     []string{"f"},
+				Usage:       "path of `FILE` to store log",
+				Destination: &logFile,
+			},
+			&cli.StringFlag{
+				Name:        "verbose",
+				Aliases:     []string{"v"},
+				Value:       "warn",
+				Usage:       "`LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
+				Destination: &verbose,
+			},
+		},
+		Before: func(context *cli.Context) (err error) {
+			if err = setupLogger(); err != nil {
+				return
+			}
+			exec, err = executor.NewExecutor(dsn)
+			return
+		},
+		Commands: cli.Commands{
+			tpchCommand,
+		},
 	}
 
-	gen := generator.NewTpcHGenerator()
-	scope := horoscope.NewHoroscope(exec, gen)
-
-	for {
-		results, err := scope.Step(*round)
-		if err != nil {
-			panic(err.Error())
-		}
-
-		if results == nil {
-			break
-		}
-		for _, result := range results.Plans {
-			if result.Cost < results.Origin.Cost {
-				same, err := exec.IsSamePlan(results.Origin.Sql, result.Sql)
-				if err != nil {
-					panic(err.Error())
-				}
-				if !same {
-					log.WithFields(log.Fields{
-						"query":       results.Origin.Sql,
-						"better plan": result.Sql,
-					}).Errorf(
-						"choose wrong plan(%dms < %dms)",
-						result.Cost.Milliseconds(),
-						results.Origin.Cost.Milliseconds(),
-					)
-				}
-			}
-		}
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
-func setupLogger() {
-	log.SetLevel(log.WarnLevel)
-	if *jsonFormatter {
+func setupLogger() error {
+	if jsonFormatter {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	if *verbose {
-		log.SetLevel(log.InfoLevel)
+	level, err := log.ParseLevel(verbose)
+	if err != nil {
+		return err
 	}
+	log.SetLevel(level)
 
-	if *verbosePlus {
-		log.SetLevel(log.DebugLevel)
-	}
-
-	if *logFile != "" {
-		file, err := os.Open(*logFile)
+	if logFile != "" {
+		file, err := os.Open(logFile)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"err":  err.Error(),
-				"path": *logFile,
-			}).Fatalln("fail to open file")
+			return err
 		}
 		log.SetOutput(file)
 	}
+
+	return nil
 }

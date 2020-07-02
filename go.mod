@@ -12,6 +12,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1
+	github.com/urfave/cli/v2 v2.2.0
 	golang.org/x/sys v0.0.0-20200610111108-226ff32320da // indirect
 	google.golang.org/protobuf v1.24.0 // indirect
 )

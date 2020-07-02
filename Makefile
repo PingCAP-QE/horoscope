@@ -8,7 +8,7 @@ GOBUILD=$(GO) build
 default: horoscope
 
 horoscope:
-	$(GOBUILD) $(GOMOD) -o bin/horoscope cmd/*.go
+	$(GOBUILD) $(GOMOD) -o bin/horo cmd/*.go
 
 fmt:
 	go fmt ./...
