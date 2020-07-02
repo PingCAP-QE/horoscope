@@ -14,39 +14,103 @@
 package main
 
 import (
-	"log"
+	"os"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
-	"github.com/chaos-mesh/horoscope/pkg/generator"
-	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 )
 
 var (
 	/// Config
-	Dsn        = "root:@tcp(localhost:4000)/test?charset=utf8"
-	Round uint = 1
+	dsn           string
+	round         uint
+	jsonFormatter bool
+	logFile       string
+	verbose       string
+
+	/// components
+	exec executor.Executor
 )
 
 func main() {
-	exec, err := executor.NewExecutor(Dsn)
+	app := &cli.App{
+		Name:  "horoscope",
+		Usage: "An optimizer inspector for DBMS",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "dsn",
+				Aliases:     []string{"d"},
+				Value:       "root:@tcp(localhost:4000)/test?charset=utf8",
+				Usage:       "`DSN` of target db",
+				Destination: &dsn,
+			},
+			&cli.UintFlag{
+				Name:        "round",
+				Aliases:     []string{"r"},
+				Value:       1,
+				Usage:       "Execution `ROUND` of each query",
+				Destination: &round,
+			},
+			&cli.BoolFlag{
+				Name:        "json",
+				Aliases:     []string{"j"},
+				Value:       false,
+				Usage:       "Format log with json formatter",
+				Destination: &jsonFormatter,
+			},
+			&cli.StringFlag{
+				Name:        "file",
+				Aliases:     []string{"f"},
+				Usage:       "`FILE` to store log",
+				Destination: &logFile,
+			},
+			&cli.StringFlag{
+				Name:        "verbose",
+				Aliases:     []string{"v"},
+				Value:       "info",
+				Usage:       "`LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
+				Destination: &verbose,
+			},
+		},
+		Before: func(context *cli.Context) (err error) {
+			if err = setupLogger(); err != nil {
+				return
+			}
+			exec, err = executor.NewExecutor(dsn)
+			return
+		},
+		Commands: cli.Commands{
+			tpchCommand,
+			queryCommand,
+		},
+	}
+
+	err := app.Run(os.Args)
 	if err != nil {
-		panic(err.Error())
+		log.Fatal(err)
+	}
+}
+
+func setupLogger() error {
+	if jsonFormatter {
+		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	gen := generator.NewTpcHGenerator()
-	scope := horoscope.NewHoroscope(exec, gen)
+	level, err := log.ParseLevel(verbose)
+	if err != nil {
+		return err
+	}
+	log.SetLevel(level)
 
-	for {
-		results, err := scope.Step(Round)
+	if logFile != "" {
+		file, err := os.Open(logFile)
 		if err != nil {
-			panic(err.Error())
+			return err
 		}
-
-		if results == nil {
-			break
-		}
-		for _, result := range append(results.Plans, results.Origin) {
-			log.Printf("SQL(%s), Round: %d, Cost: %d us", result.Sql, result.Round, result.Cost.Microseconds())
-		}
+		log.SetOutput(file)
 	}
+
+	return nil
 }

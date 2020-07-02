@@ -15,14 +15,6 @@ package generator
 
 import "github.com/pingcap/parser/ast"
 
-type (
-	Generator interface {
-		Query() ast.StmtNode
-	}
-
-	GeneratorFunc func() ast.StmtNode
-)
-
-func (g GeneratorFunc) Query() ast.StmtNode {
-	return g()
+var BlankGenerator GeneratorFunc = func() ast.StmtNode {
+	return nil
 }

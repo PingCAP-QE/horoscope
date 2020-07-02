@@ -17,17 +17,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 
-	"github.com/go-sql-driver/mysql"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/model"
-	"github.com/pingcap/tidb/errno"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -69,11 +67,14 @@ func (h *Horoscope) Plan(node ast.StmtNode, planId int64) (string, error) {
 	default:
 		return "", errors.New("unsupported statement")
 	}
-	return bufferOut(node)
+	return BufferOut(node)
 }
 
 func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, list []executor.Rows, err error) {
-	log.Printf("query(%s)", query)
+	log.WithFields(log.Fields{
+		"query": query,
+		"round": round,
+	}).Debug("query with time")
 	start := time.Now()
 	list, err = h.exec.Query(query, round)
 	dur = time.Since(start)
@@ -86,7 +87,7 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		return
 	}
 
-	originQuery, err := bufferOut(query)
+	originQuery, err := BufferOut(query)
 	if err != nil {
 		return
 	}
@@ -96,41 +97,48 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 		return
 	}
 
+	log.WithFields(log.Fields{
+		"query": originQuery,
+		"cost":  fmt.Sprintf("%dms", originDur.Milliseconds()),
+	}).Info("complete origin query")
+
 	results = &BenchResults{
 		Origin: BenchResult{Round: round, Cost: originDur, Sql: originQuery},
 		Plans:  make([]BenchResult, 0),
 	}
 
-	lists := make([][]executor.Rows, 0)
+	rowsSet := make([][]executor.Rows, 0)
 
-	var id int64 = 0
+	var id int64 = 1
 	for ; ; id++ {
 		var plan string
 		var dur time.Duration
-		var list []executor.Rows
+		var rows []executor.Rows
 
 		plan, err = h.Plan(query, id)
 		if err != nil {
 			return
 		}
 
-		dur, list, err = h.QueryWithTime(round, plan)
-		log.Printf("sql(%s), cost: %d us", plan, dur.Microseconds())
+		dur, rows, err = h.QueryWithTime(round, plan)
+		log.WithFields(log.Fields{
+			"query": plan,
+			"cost":  fmt.Sprintf("%dms", dur.Milliseconds()),
+		}).Infof("complete execution plan%d", id)
 
 		if err != nil {
-			log.Printf("err: %s", err.Error())
-			if planOutOfRange(err) {
-				err = verifyQueryResult(originList, lists)
+			if executor.PlanOutOfRange(err) {
+				err = verifyQueryResult(originList, rowsSet)
 			}
 			return
 		}
 
-		lists = append(lists, list)
+		rowsSet = append(rowsSet, rows)
 		results.Plans = append(results.Plans, BenchResult{Round: round, Sql: plan, Cost: dur})
 	}
 }
 
-func bufferOut(node ast.Node) (string, error) {
+func BufferOut(node ast.Node) (string, error) {
 	out := new(bytes.Buffer)
 	err := node.Restore(format.NewRestoreCtx(format.RestoreStringDoubleQuotes, out))
 	if err != nil {
@@ -148,11 +156,6 @@ func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
 		}
 	}
 	return nil
-}
-
-func planOutOfRange(err error) bool {
-	mysqlErr, ok := err.(*mysql.MySQLError)
-	return ok && mysqlErr.Number == errno.ErrInternal
 }
 
 func verifyQueryResult(origin []executor.Rows, lists [][]executor.Rows) (err error) {
