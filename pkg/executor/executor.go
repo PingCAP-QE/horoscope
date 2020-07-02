@@ -61,6 +61,12 @@ func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
 			if err != nil {
 				return err
 			}
+
+			err = queryWarning(tx)
+			if err != nil {
+				return err
+			}
+
 			rowsList = append(rowsList, row)
 		}
 		return nil
@@ -82,6 +88,12 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 			if err != nil {
 				return err
 			}
+
+			err = queryWarning(tx)
+			if err != nil {
+				return err
+			}
+
 			results = append(results, result)
 			return nil
 		})
@@ -95,4 +107,21 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 func NewExecutor(dsn string) (Executor, error) {
 	db, err := sql.Open("mysql", dsn)
 	return &MySQLExecutor{db: db}, err
+}
+
+func queryWarning(tx *sql.Tx) (err error) {
+	data, err := tx.Query("SHOW WARNINGS;")
+	if err != nil {
+		return
+	}
+	rows, err := NewRows(data)
+	if err != nil {
+		return
+	}
+
+	for _, row := range rows {
+		return Warning(row)
+	}
+
+	return
 }

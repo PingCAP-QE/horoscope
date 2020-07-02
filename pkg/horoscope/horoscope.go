@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
@@ -152,7 +153,7 @@ func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
 
 func planOutOfRange(err error) bool {
 	mysqlErr, ok := err.(*mysql.MySQLError)
-	return ok && mysqlErr.Number == errno.ErrInternal
+	return ok && mysqlErr.Number == errno.ErrUnknown && strings.Contains(mysqlErr.Message, "nth_plan")
 }
 
 func verifyQueryResult(origin []executor.Rows, lists [][]executor.Rows) (err error) {

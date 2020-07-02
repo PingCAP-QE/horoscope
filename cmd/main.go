@@ -51,8 +51,8 @@ func main() {
 					"Bad plan %dms < %dms:\n`%s`\n runs slower than\n`%s`\n",
 					result.Cost.Milliseconds(),
 					results.Origin.Cost.Milliseconds(),
+					results.Origin.Sql,
 					result.Sql,
-					results.Origin.Cost,
 				)
 			}
 		}
