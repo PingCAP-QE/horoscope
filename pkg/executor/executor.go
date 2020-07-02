@@ -16,7 +16,8 @@ package executor
 import (
 	"context"
 	"database/sql"
-
+	"errors"
+	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -25,6 +26,7 @@ type (
 	Executor  interface {
 		Query(query string, round uint) ([]Rows, error)
 		Exec(query string, round uint) ([]Result, error)
+		IsSamePlan(q1, q2 string) (equal bool, err error)
 	}
 
 	MySQLExecutor struct {
@@ -78,7 +80,7 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 	results = make([]Result, 0, round)
 	var i uint
 	for i = 0; i < round; i++ {
-		err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sql.Tx) error {
+		err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) error {
 			data, err := tx.Exec(query)
 			if err != nil {
 				return err
@@ -104,6 +106,25 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 	return
 }
 
+func (e *MySQLExecutor) IsSamePlan(q1, q2 string) (equal bool, err error) {
+	var h1, h2 Hints
+	err = e.EnterTx(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) (err error) {
+		h1, err = GetHints(tx, q1)
+		if err != nil {
+			return
+		}
+		h2, err = GetHints(tx, q2)
+		return
+	})
+	if err != nil {
+		return
+	}
+	h1.RemoveNTHPlan()
+	h2.RemoveNTHPlan()
+	equal = h1.Equal(h2)
+	return
+}
+
 func NewExecutor(dsn string) (Executor, error) {
 	db, err := sql.Open("mysql", dsn)
 	return &MySQLExecutor{db: db}, err
@@ -123,5 +144,23 @@ func queryWarning(tx *sql.Tx) (err error) {
 		return Warning(row)
 	}
 
+	return
+}
+
+func GetHints(tx *sql.Tx, query string) (hints Hints, err error) {
+	explanation := fmt.Sprintf("explain format = 'hint' %s", query)
+	rawRows, err := tx.Query(explanation)
+	if err != nil {
+		return
+	}
+	rows, err := NewRows(rawRows)
+	if err != nil {
+		return
+	}
+	if len(rows) != 1 || len(rows[0]) != 1 {
+		err = errors.New(fmt.Sprintf("Unexpected hint explanation: %#v", rows))
+		return
+	}
+	hints = NewHints(rows[0][0])
 	return
 }

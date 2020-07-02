@@ -47,13 +47,19 @@ func main() {
 		}
 		for _, result := range results.Plans {
 			if result.Cost < results.Origin.Cost {
-				log.Fatalf(
-					"Bad plan %dms < %dms:\n`%s`\n runs slower than\n`%s`\n",
-					result.Cost.Milliseconds(),
-					results.Origin.Cost.Milliseconds(),
-					results.Origin.Sql,
-					result.Sql,
-				)
+				same, err := exec.IsSamePlan(results.Origin.Sql, result.Sql)
+				if err != nil {
+					panic(err.Error())
+				}
+				if !same {
+					log.Fatalf(
+						"Bad plan %dms < %dms:\n`%s`\n runs slower than\n`%s`\n",
+						result.Cost.Milliseconds(),
+						results.Origin.Cost.Milliseconds(),
+						results.Origin.Sql,
+						result.Sql,
+					)
+				}
 			}
 		}
 	}
