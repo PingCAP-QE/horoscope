@@ -51,8 +51,10 @@ func tpch(*cli.Context) error {
 	}
 	gen := generator.NewTpcHGenerator()
 	scope = horoscope.NewHoroscope(exec, gen)
+	step := 0
 	for {
 		results, err := scope.Step(round)
+		step++
 		if err != nil {
 			return err
 		}
@@ -67,9 +69,20 @@ func tpch(*cli.Context) error {
 					return err
 				}
 				if !same {
+					hints, err := exec.GetHints(result.Sql)
+					if err != nil {
+						return err
+					}
+					defaultHints, err := exec.GetHints(result.Sql)
+					if err != nil {
+						return err
+					}
+
 					log.WithFields(log.Fields{
-						"query":       results.Origin.Sql,
-						"better plan": result.Sql,
+						"query":        results.Origin.Sql,
+						"step":         step,
+						"default plan": defaultHints.String(),
+						"better plan":  hints.String(),
 					}).Errorf(
 						"choose wrong plan(%dms < %dms)",
 						result.Cost.Milliseconds(),
