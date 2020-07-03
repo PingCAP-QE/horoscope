@@ -53,42 +53,36 @@ func tpch(*cli.Context) error {
 	scope = horoscope.NewHoroscope(exec, gen)
 	step := 0
 	for {
-		results, err := scope.Step(round)
-		step++
+		benches, err := scope.Step(round)
 		if err != nil {
 			return err
 		}
 
-		if results == nil {
+		if benches == nil {
 			break
 		}
-		for _, result := range results.Plans {
-			if result.Cost < results.Origin.Cost {
-				same, err := exec.IsSamePlan(results.Origin.Sql, result.Sql)
-				if err != nil {
-					return err
-				}
-				if !same {
-					hints, err := exec.GetHints(result.Sql)
-					if err != nil {
-						return err
-					}
-					defaultHints, err := exec.GetHints(result.Sql)
-					if err != nil {
-						return err
-					}
+		step++
 
-					log.WithFields(log.Fields{
-						"query":        results.Origin.Sql,
-						"step":         step,
-						"default plan": defaultHints.String(),
-						"better plan":  hints.String(),
-					}).Errorf(
-						"choose wrong plan(%dms < %dms)",
-						result.Cost.Milliseconds(),
-						results.Origin.Cost.Milliseconds(),
-					)
-				}
+		log.WithFields(log.Fields{
+			"query":         benches.SQL,
+			"step":          step,
+			"default plan":  benches.DefaultPlan,
+			"default hints": benches.Hints,
+			"cost":          fmt.Sprintf("%dms", benches.Cost.Milliseconds()),
+			"plan size":     len(benches.Plans),
+		}).Info("Complete a step")
+		for _, plan := range benches.Plans {
+			if plan.Cost < benches.Cost && !plan.Hints.Equal(benches.Hints) {
+				log.WithFields(log.Fields{
+					"step":         step,
+					"better plan":  plan.Plan,
+					"better hints": plan.Hints,
+				}).Errorf(
+					"choose wrong plan(%dms < %dms)",
+					plan.Cost.Milliseconds(),
+					benches.Cost.Milliseconds(),
+				)
+
 			}
 		}
 	}

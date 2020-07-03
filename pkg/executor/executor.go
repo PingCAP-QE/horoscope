@@ -28,8 +28,7 @@ type (
 	Executor  interface {
 		Query(query string, round uint) ([]Rows, error)
 		Exec(query string, round uint) ([]Result, error)
-		GetHints(query string) (Hints, error)
-		IsSamePlan(q1, q2 string) (equal bool, err error)
+		GetHints(query string) (Hints, []error, error)
 	}
 
 	MySQLExecutor struct {
@@ -67,11 +66,6 @@ func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
 				return err
 			}
 
-			err = queryWarning(tx)
-			if err != nil {
-				return err
-			}
-
 			rowsList = append(rowsList, row)
 		}
 		return nil
@@ -94,11 +88,6 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 				return err
 			}
 
-			err = queryWarning(tx)
-			if err != nil {
-				return err
-			}
-
 			results = append(results, result)
 			return nil
 		})
@@ -109,29 +98,15 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 	return
 }
 
-func (e *MySQLExecutor) IsSamePlan(q1, q2 string) (equal bool, err error) {
-	var h1, h2 Hints
-	err = e.EnterTx(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) (err error) {
-		h1, err = getHints(tx, q1)
+/// GetHints would query plan out of range warnings
+func (e *MySQLExecutor) GetHints(query string) (hints Hints, warnings []error, err error) {
+	_ = e.EnterTx(nil, func(tx *sql.Tx) (_ error) {
+		hints, err = getHints(tx, query)
 		if err != nil {
 			return
 		}
-		h2, err = getHints(tx, q2)
+		warnings, err = queryWarnings(tx)
 		return
-	})
-	if err != nil {
-		return
-	}
-	h1.RemoveNTHPlan()
-	h2.RemoveNTHPlan()
-	equal = h1.Equal(h2)
-	return
-}
-
-func (e *MySQLExecutor) GetHints(query string) (hints Hints, err error) {
-	_ = e.EnterTx(nil, func(tx *sql.Tx) error {
-		hints, err = getHints(tx, query)
-		return nil
 	})
 	return
 }
@@ -141,7 +116,7 @@ func NewExecutor(dsn string) (Executor, error) {
 	return &MySQLExecutor{db: db}, err
 }
 
-func queryWarning(tx *sql.Tx) (err error) {
+func queryWarnings(tx *sql.Tx) (warnings []error, err error) {
 	data, err := tx.Query("SHOW WARNINGS;")
 	if err != nil {
 		return
@@ -151,8 +126,14 @@ func queryWarning(tx *sql.Tx) (err error) {
 		return
 	}
 
+	warnings = make([]error, 0)
+	var warning error
 	for _, row := range rows {
-		return Warning(row)
+		warning, err = Warning(row)
+		if err != nil {
+			return
+		}
+		warnings = append(warnings, warning)
 	}
 
 	return

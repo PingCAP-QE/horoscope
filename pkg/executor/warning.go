@@ -23,14 +23,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Warning(row Row) error {
+func Warning(row Row) (warning error, err error) {
 	if len(row) != 3 {
-		return errors.New("warning table should have 3 columns")
+		err = errors.New("warning table should have 3 columns")
+		return
 	}
 
 	code, err := strconv.Atoi(row[1])
 	if err != nil {
-		return err
+		return
 	}
 
 	log.WithFields(log.Fields{
@@ -38,12 +39,8 @@ func Warning(row Row) error {
 		"msg":  row[2],
 	}).Debug("sql warning")
 
-	err = &mysql.MySQLError{Number: uint16(code), Message: row[2]}
-	if PlanOutOfRange(err) {
-		return err
-	} else {
-		return nil
-	}
+	warning = &mysql.MySQLError{Number: uint16(code), Message: row[2]}
+	return
 }
 
 func PlanOutOfRange(err error) bool {
