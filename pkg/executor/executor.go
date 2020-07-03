@@ -26,9 +26,11 @@ import (
 type (
 	QueryMode uint8
 	Executor  interface {
+		QueryOnce(query string) (Rows, error)
 		Query(query string, round uint) ([]Rows, error)
 		Exec(query string, round uint) ([]Result, error)
 		GetHints(query string) (Hints, []error, error)
+		Explain(query string) (Rows, error)
 	}
 
 	MySQLExecutor struct {
@@ -73,6 +75,14 @@ func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
 	return rowsList, err
 }
 
+func (e *MySQLExecutor) QueryOnce(query string) (Rows, error) {
+	rowSet, err := e.Query(query, 1)
+	if err != nil {
+		return Rows{}, err
+	}
+	return rowSet[0], nil
+}
+
 func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err error) {
 	results = make([]Result, 0, round)
 	var i uint
@@ -111,6 +121,18 @@ func (e *MySQLExecutor) GetHints(query string) (hints Hints, warnings []error, e
 	return
 }
 
+func (e *MySQLExecutor) Explain(query string) (rows Rows, err error) {
+	const Columns = 5
+	rows, err = e.QueryOnce(fmt.Sprintf("EXPLAIN %s", query))
+	if err != nil {
+		return
+	}
+	if rows.Columns() != Columns {
+		err = errors.New(fmt.Sprintf("Unexpected numbers of columns: expect %d, actually %d", Columns, rows.Columns()))
+	}
+	return
+}
+
 func NewExecutor(dsn string) (Executor, error) {
 	db, err := sql.Open("mysql", dsn)
 	return &MySQLExecutor{db: db}, err
@@ -128,7 +150,7 @@ func queryWarnings(tx *sql.Tx) (warnings []error, err error) {
 
 	warnings = make([]error, 0)
 	var warning error
-	for _, row := range rows {
+	for _, row := range rows.data {
 		warning, err = Warning(row)
 		if err != nil {
 			return
@@ -149,11 +171,11 @@ func getHints(tx *sql.Tx, query string) (hints Hints, err error) {
 	if err != nil {
 		return
 	}
-	if len(rows) != 1 || len(rows[0]) != 1 {
+	if rows.Rows() != 1 || rows.Columns() != 1 {
 		err = errors.New(fmt.Sprintf("Unexpected hint explanation: %#v", rows))
 		return
 	}
-	hints = NewHints(rows[0][0])
+	hints = NewHints(rows.data[0][0])
 
 	log.WithFields(log.Fields{
 		"query": query,

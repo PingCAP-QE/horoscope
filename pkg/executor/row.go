@@ -13,15 +13,22 @@
 
 package executor
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"github.com/jedib0t/go-pretty/table"
+)
 
 type (
 	Row  []string
-	Rows []Row
+	Rows struct {
+		columns Row
+		data    []Row
+	}
 )
 
 func NewRows(rows *sql.Rows) (ret Rows, err error) {
-	ret = make(Rows, 0)
+	data := make([]Row, 0)
 	columns, err := rows.Columns()
 	if err != nil {
 		return
@@ -40,9 +47,18 @@ func NewRows(rows *sql.Rows) (ret Rows, err error) {
 		for _, data := range dataSet {
 			row = append(row, *data.(*string))
 		}
-		ret = append(ret, row)
+		data = append(data, row)
 	}
+	ret = Rows{data: data, columns: columns}
 	return
+}
+
+func (r Rows) Rows() int {
+	return len(r.data)
+}
+
+func (r Rows) Columns() int {
+	return len(r.columns)
 }
 
 func (r Row) Equal(other Row) bool {
@@ -57,14 +73,36 @@ func (r Row) Equal(other Row) bool {
 	return true
 }
 
+func (r Row) ToTableRow() table.Row {
+	tableRow := make(table.Row, 0, len(r))
+	for _, column := range r {
+		tableRow = append(tableRow, column)
+	}
+	return tableRow
+}
+
 func (r Rows) Equal(other Rows) bool {
-	if len(r) != len(other) {
+	if r.Rows() != other.Rows() || r.Columns() != other.Columns() {
 		return false
 	}
-	for i, column := range r {
-		if !column.Equal(other[i]) {
+	for i, column := range r.columns {
+		if column != other.columns[i] {
+			return false
+		}
+	}
+	for i, row := range r.data {
+		if !row.Equal(other.data[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+func (r Rows) String() string {
+	t := table.NewWriter()
+	t.AppendHeader(r.columns.ToTableRow())
+	for _, row := range r.data {
+		t.AppendRow(row.ToTableRow())
+	}
+	return t.Render()
 }
