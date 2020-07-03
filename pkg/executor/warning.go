@@ -45,5 +45,5 @@ func Warning(row Row) (warning error, err error) {
 
 func PlanOutOfRange(err error) bool {
 	mysqlErr, ok := err.(*mysql.MySQLError)
-	return ok && mysqlErr.Number == errno.ErrUnknown && strings.Contains(mysqlErr.Message, "nth_plan")
+	return ok && mysqlErr.Number == errno.ErrUnknown && strings.Contains(strings.ToLower(mysqlErr.Message), "nth_plan")
 }
