@@ -84,6 +84,7 @@ func main() {
 		Commands: cli.Commands{
 			tpchCommand,
 			queryCommand,
+			explainCommand,
 		},
 	}
 

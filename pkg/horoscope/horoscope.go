@@ -38,16 +38,24 @@ type (
 		gen  generator.Generator
 	}
 
-	BenchResult struct {
-		Round uint
-		Sql   string
-		Cost  time.Duration
+	Bench struct {
+		Plan        int64
+		SQL         string
+		Hints       executor.Hints
+		Explanation executor.Rows
+		Cost        time.Duration
 	}
 
-	BenchResults struct {
-		QueryID string
-		Origin  BenchResult
-		Plans   []BenchResult
+	Benches struct {
+		QueryID     string
+		SQL         string
+		Query       ast.StmtNode
+		Round       uint
+		Hints       executor.Hints
+		Cost        time.Duration
+		DefaultPlan int64
+		Explanation executor.Rows
+		Plans       []*Bench
 	}
 )
 
@@ -55,20 +63,70 @@ func NewHoroscope(exec executor.Executor, gen generator.Generator) *Horoscope {
 	return &Horoscope{exec: exec, gen: gen}
 }
 
-func (h *Horoscope) Plan(node ast.StmtNode, planId int64) (string, error) {
-	switch stmt := node.(type) {
-	case *ast.SelectStmt:
-		if planHint := findPlanHint(stmt.TableHints); planHint != nil {
-			planHint.HintData = planId
-		} else {
-			stmt.TableHints = []*ast.TableOptimizerHint{
-				{HintName: PlanHint, HintData: planId},
+func (h *Horoscope) InitBenches(query ast.StmtNode, round uint, queryID string) (benches *Benches, err error) {
+	sql, err := BufferOut(query)
+	if err != nil {
+		return
+	}
+
+	hints, _, err := h.exec.GetHints(sql)
+	if err != nil {
+		return
+	}
+
+	explanation, err := h.exec.Explain(sql)
+	if err != nil {
+		return
+	}
+
+	benches = &Benches{
+		QueryID:     queryID,
+		Round:       round,
+		SQL:         sql,
+		Query:       query,
+		Hints:       hints,
+		Explanation: explanation,
+		Plans:       make([]*Bench, 0),
+	}
+
+	var id int64 = 1
+	for ; ; id++ {
+		var plan string
+		var warnings []error
+
+		plan, err = Plan(query, id)
+		if err != nil {
+			return
+		}
+
+		hints, warnings, err = h.exec.GetHints(plan)
+
+		if err != nil {
+			return
+		}
+
+		for _, warning := range warnings {
+			if executor.PlanOutOfRange(warning) {
+				return
 			}
 		}
-	default:
-		return "", errors.New("unsupported statement")
+
+		explanation, err = h.exec.Explain(plan)
+		if err != nil {
+			return
+		}
+
+		if benches.Explanation.Equal(explanation) {
+			benches.DefaultPlan = id
+		}
+
+		benches.Plans = append(benches.Plans, &Bench{
+			Hints:       hints,
+			Explanation: explanation,
+			Plan:        id,
+			SQL:         plan,
+		})
 	}
-	return BufferOut(node)
 }
 
 func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, list []executor.Rows, err error) {
@@ -82,64 +140,54 @@ func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, 
 	return
 }
 
-func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
+func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
 	qID, query := h.gen.Query()
 	if query == nil {
 		return
 	}
 
-	originQuery, err := BufferOut(query)
+	benches, err = h.InitBenches(query, round, qID)
+
 	if err != nil {
 		return
 	}
 
-	originDur, originList, err := h.QueryWithTime(round, originQuery)
+	originDur, originList, err := h.QueryWithTime(round, benches.SQL)
 	if err != nil {
 		return
 	}
+
+	benches.Cost = originDur
 
 	log.WithFields(log.Fields{
 		"query id": qID,
-		"query":    originQuery,
+		"query":    benches.SQL,
 		"cost":     fmt.Sprintf("%dms", originDur.Milliseconds()),
 	}).Info("complete origin query")
 
-	results = &BenchResults{
-		QueryID: qID,
-		Origin:  BenchResult{Round: round, Cost: originDur, Sql: originQuery},
-		Plans:   make([]BenchResult, 0),
-	}
-
 	rowsSet := make([][]executor.Rows, 0)
 
-	var id int64 = 1
-	for ; ; id++ {
-		var plan string
+	for _, plan := range benches.Plans {
 		var dur time.Duration
 		var rows []executor.Rows
 
-		plan, err = h.Plan(query, id)
+		dur, rows, err = h.QueryWithTime(round, plan.SQL)
 		if err != nil {
 			return
 		}
 
-		dur, rows, err = h.QueryWithTime(round, plan)
 		log.WithFields(log.Fields{
 			"query id": qID,
-			"query":    plan,
+			"query":    plan.SQL,
 			"cost":     fmt.Sprintf("%dms", dur.Milliseconds()),
-		}).Infof("complete execution plan%d", id)
-
-		if err != nil {
-			if executor.PlanOutOfRange(err) {
-				err = verifyQueryResult(originList, rowsSet)
-			}
-			return
-		}
+		}).Infof("complete execution plan%d", plan.Plan)
 
 		rowsSet = append(rowsSet, rows)
-		results.Plans = append(results.Plans, BenchResult{Round: round, Sql: plan, Cost: dur})
+		plan.Cost = dur
 	}
+
+	err = verifyQueryResult(originList, rowsSet)
+	return
 }
 
 func BufferOut(node ast.Node) (string, error) {
@@ -181,4 +229,20 @@ func verifyList(one, other []executor.Rows) bool {
 		}
 	}
 	return true
+}
+
+func Plan(node ast.StmtNode, planId int64) (string, error) {
+	switch stmt := node.(type) {
+	case *ast.SelectStmt:
+		if planHint := findPlanHint(stmt.TableHints); planHint != nil {
+			planHint.HintData = planId
+		} else {
+			stmt.TableHints = []*ast.TableOptimizerHint{
+				{HintName: PlanHint, HintData: planId},
+			}
+		}
+	default:
+		return "", errors.New("unsupported statement")
+	}
+	return BufferOut(node)
 }

@@ -26,10 +26,11 @@ import (
 type (
 	QueryMode uint8
 	Executor  interface {
+		QueryOnce(query string) (Rows, error)
 		Query(query string, round uint) ([]Rows, error)
 		Exec(query string, round uint) ([]Result, error)
-		GetHints(query string) (Hints, error)
-		IsSamePlan(q1, q2 string) (equal bool, err error)
+		GetHints(query string) (Hints, []error, error)
+		Explain(query string) (Rows, error)
 	}
 
 	MySQLExecutor struct {
@@ -67,16 +68,19 @@ func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
 				return err
 			}
 
-			err = queryWarning(tx)
-			if err != nil {
-				return err
-			}
-
 			rowsList = append(rowsList, row)
 		}
 		return nil
 	})
 	return rowsList, err
+}
+
+func (e *MySQLExecutor) QueryOnce(query string) (Rows, error) {
+	rowSet, err := e.Query(query, 1)
+	if err != nil {
+		return Rows{}, err
+	}
+	return rowSet[0], nil
 }
 
 func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err error) {
@@ -94,11 +98,6 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 				return err
 			}
 
-			err = queryWarning(tx)
-			if err != nil {
-				return err
-			}
-
 			results = append(results, result)
 			return nil
 		})
@@ -109,30 +108,28 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 	return
 }
 
-func (e *MySQLExecutor) IsSamePlan(q1, q2 string) (equal bool, err error) {
-	var h1, h2 Hints
-	err = e.EnterTx(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) (err error) {
-		h1, err = getHints(tx, q1)
+/// GetHints would query plan out of range warnings
+func (e *MySQLExecutor) GetHints(query string) (hints Hints, warnings []error, err error) {
+	_ = e.EnterTx(nil, func(tx *sql.Tx) (_ error) {
+		hints, err = getHints(tx, query)
 		if err != nil {
 			return
 		}
-		h2, err = getHints(tx, q2)
+		warnings, err = queryWarnings(tx)
 		return
 	})
-	if err != nil {
-		return
-	}
-	h1.RemoveNTHPlan()
-	h2.RemoveNTHPlan()
-	equal = h1.Equal(h2)
 	return
 }
 
-func (e *MySQLExecutor) GetHints(query string) (hints Hints, err error) {
-	_ = e.EnterTx(nil, func(tx *sql.Tx) error {
-		hints, err = getHints(tx, query)
-		return nil
-	})
+func (e *MySQLExecutor) Explain(query string) (rows Rows, err error) {
+	const Columns = 5
+	rows, err = e.QueryOnce(fmt.Sprintf("EXPLAIN %s", query))
+	if err != nil {
+		return
+	}
+	if rows.Columns() != Columns {
+		err = errors.New(fmt.Sprintf("Unexpected numbers of columns: expect %d, actually %d", Columns, rows.Columns()))
+	}
 	return
 }
 
@@ -141,7 +138,7 @@ func NewExecutor(dsn string) (Executor, error) {
 	return &MySQLExecutor{db: db}, err
 }
 
-func queryWarning(tx *sql.Tx) (err error) {
+func queryWarnings(tx *sql.Tx) (warnings []error, err error) {
 	data, err := tx.Query("SHOW WARNINGS;")
 	if err != nil {
 		return
@@ -151,8 +148,14 @@ func queryWarning(tx *sql.Tx) (err error) {
 		return
 	}
 
-	for _, row := range rows {
-		return Warning(row)
+	warnings = make([]error, 0)
+	var warning error
+	for _, row := range rows.data {
+		warning, err = Warning(row)
+		if err != nil {
+			return
+		}
+		warnings = append(warnings, warning)
 	}
 
 	return
@@ -168,11 +171,11 @@ func getHints(tx *sql.Tx, query string) (hints Hints, err error) {
 	if err != nil {
 		return
 	}
-	if len(rows) != 1 || len(rows[0]) != 1 {
+	if rows.Rows() != 1 || rows.Columns() != 1 {
 		err = errors.New(fmt.Sprintf("Unexpected hint explanation: %#v", rows))
 		return
 	}
-	hints = NewHints(rows[0][0])
+	hints = NewHints(rows.data[0][0])
 
 	log.WithFields(log.Fields{
 		"query": query,

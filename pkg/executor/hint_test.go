@@ -36,8 +36,6 @@ func TestHints_Equal(t *testing.T) {
 	for _, testCase := range HintsTestCases {
 		h1 := NewHints(testCase.origin)
 		h2 := NewHints(testCase.expect)
-		h1.RemoveNTHPlan()
-		h2.RemoveNTHPlan()
 		if testCase.fail {
 			assert.False(t, h1.Equal(h2))
 		} else {

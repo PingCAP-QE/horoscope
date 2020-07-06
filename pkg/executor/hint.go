@@ -18,32 +18,29 @@ import (
 	"strings"
 )
 
-type Hints map[string]bool
+type Hints struct {
+	segments map[string]bool
+	raw      string
+}
 
 func NewHints(raw string) Hints {
-	hints := make(Hints)
+	hints := Hints{
+		segments: make(map[string]bool),
+		raw:      raw,
+	}
 	for _, hint := range strings.Split(raw, ",") {
-		hints[strings.Trim(hint, " ")] = true
+		segment := strings.Trim(hint, " ")
+		if !strings.Contains(segment, "nth_plan") {
+			hints.segments[segment] = true
+		}
 	}
 	return hints
 }
 
 func (h Hints) Equal(other Hints) bool {
-	return reflect.DeepEqual(h, other)
-}
-
-func (h Hints) RemoveNTHPlan() {
-	for hint := range h {
-		if strings.Contains(hint, "nth_plan") {
-			delete(h, hint)
-		}
-	}
+	return reflect.DeepEqual(h.segments, other.segments)
 }
 
 func (h Hints) String() string {
-	slice := make([]string, 0, len(h))
-	for hint := range h {
-		slice = append(slice, hint)
-	}
-	return strings.Join(slice, ", ")
+	return h.raw
 }
