@@ -71,8 +71,12 @@ func tpch(*cli.Context) error {
 			"cost":          fmt.Sprintf("%dms", benches.Cost.Milliseconds()),
 			"plan size":     len(benches.Plans),
 		}).Info("Complete a step")
+		log.WithFields(log.Fields{
+			"step":        step,
+			"explanation": benches.Explanation.String(),
+		}).Debug("Default explanation")
 		for _, plan := range benches.Plans {
-			if plan.Cost < benches.Cost && !plan.Hints.Equal(benches.Hints) {
+			if plan.Cost < benches.Cost && plan.Plan != benches.DefaultPlan {
 				log.WithFields(log.Fields{
 					"step":         step,
 					"better plan":  plan.Plan,
@@ -82,7 +86,10 @@ func tpch(*cli.Context) error {
 					plan.Cost.Milliseconds(),
 					benches.Cost.Milliseconds(),
 				)
-
+				log.WithFields(log.Fields{
+					"step":               step,
+					"better explanation": plan.Explanation.String(),
+				}).Debug("Better explanation")
 			}
 		}
 	}

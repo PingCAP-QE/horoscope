@@ -39,10 +39,11 @@ type (
 	}
 
 	Bench struct {
-		Plan  int64
-		SQL   string
-		Hints executor.Hints
-		Cost  time.Duration
+		Plan        int64
+		SQL         string
+		Hints       executor.Hints
+		Explanation executor.Rows
+		Cost        time.Duration
 	}
 
 	Benches struct {
@@ -52,6 +53,7 @@ type (
 		Hints       executor.Hints
 		Cost        time.Duration
 		DefaultPlan int64
+		Explanation executor.Rows
 		Plans       []*Bench
 	}
 )
@@ -71,12 +73,18 @@ func (h *Horoscope) InitBenches(query ast.StmtNode, round uint) (benches *Benche
 		return
 	}
 
+	explanation, err := h.exec.Explain(sql)
+	if err != nil {
+		return
+	}
+
 	benches = &Benches{
-		Round: round,
-		SQL:   sql,
-		Query: query,
-		Hints: hints,
-		Plans: make([]*Bench, 0),
+		Round:       round,
+		SQL:         sql,
+		Query:       query,
+		Hints:       hints,
+		Explanation: explanation,
+		Plans:       make([]*Bench, 0),
 	}
 
 	var id int64 = 1
@@ -101,14 +109,20 @@ func (h *Horoscope) InitBenches(query ast.StmtNode, round uint) (benches *Benche
 			}
 		}
 
-		if benches.Hints.Equal(hints) {
+		explanation, err = h.exec.Explain(plan)
+		if err != nil {
+			return
+		}
+
+		if benches.Explanation.Equal(explanation) {
 			benches.DefaultPlan = id
 		}
 
 		benches.Plans = append(benches.Plans, &Bench{
-			Hints: hints,
-			Plan:  id,
-			SQL:   plan,
+			Hints:       hints,
+			Explanation: explanation,
+			Plan:        id,
+			SQL:         plan,
 		})
 	}
 }
