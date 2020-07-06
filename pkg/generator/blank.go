@@ -15,6 +15,6 @@ package generator
 
 import "github.com/pingcap/parser/ast"
 
-var BlankGenerator GeneratorFunc = func() ast.StmtNode {
-	return nil
+var BlankGenerator GeneratorFunc = func() (string, ast.StmtNode) {
+	return "", nil
 }

@@ -51,10 +51,8 @@ func tpch(*cli.Context) error {
 	}
 	gen := generator.NewTpcHGenerator()
 	scope = horoscope.NewHoroscope(exec, gen)
-	step := 0
 	for {
 		results, err := scope.Step(round)
-		step++
 		if err != nil {
 			return err
 		}
@@ -79,8 +77,8 @@ func tpch(*cli.Context) error {
 					}
 
 					log.WithFields(log.Fields{
+						"query id":     results.QueryID,
 						"query":        results.Origin.Sql,
-						"step":         step,
 						"default plan": defaultHints.String(),
 						"better plan":  hints.String(),
 					}).Errorf(
@@ -106,7 +104,7 @@ func tpchPrepare() error {
 	log.Infof("Warming up...")
 	gen := generator.NewTpcHGenerator()
 	for {
-		queryNode := gen.Query()
+		_, queryNode := gen.Query()
 		if queryNode == nil {
 			break
 		}

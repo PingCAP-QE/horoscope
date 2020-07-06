@@ -45,8 +45,9 @@ type (
 	}
 
 	BenchResults struct {
-		Origin BenchResult
-		Plans  []BenchResult
+		QueryID string
+		Origin  BenchResult
+		Plans   []BenchResult
 	}
 )
 
@@ -82,7 +83,7 @@ func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, 
 }
 
 func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
-	query := h.gen.Query()
+	qID, query := h.gen.Query()
 	if query == nil {
 		return
 	}
@@ -98,13 +99,15 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 	}
 
 	log.WithFields(log.Fields{
-		"query": originQuery,
-		"cost":  fmt.Sprintf("%dms", originDur.Milliseconds()),
+		"query id": qID,
+		"query":    originQuery,
+		"cost":     fmt.Sprintf("%dms", originDur.Milliseconds()),
 	}).Info("complete origin query")
 
 	results = &BenchResults{
-		Origin: BenchResult{Round: round, Cost: originDur, Sql: originQuery},
-		Plans:  make([]BenchResult, 0),
+		QueryID: qID,
+		Origin:  BenchResult{Round: round, Cost: originDur, Sql: originQuery},
+		Plans:   make([]BenchResult, 0),
 	}
 
 	rowsSet := make([][]executor.Rows, 0)
@@ -122,8 +125,9 @@ func (h *Horoscope) Step(round uint) (results *BenchResults, err error) {
 
 		dur, rows, err = h.QueryWithTime(round, plan)
 		log.WithFields(log.Fields{
-			"query": plan,
-			"cost":  fmt.Sprintf("%dms", dur.Milliseconds()),
+			"query id": qID,
+			"query":    plan,
+			"cost":     fmt.Sprintf("%dms", dur.Milliseconds()),
 		}).Infof("complete execution plan%d", id)
 
 		if err != nil {
