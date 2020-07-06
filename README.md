@@ -10,7 +10,7 @@ horoscope is an optimizer inspector for DBMS.
 
     Recommand [TiUP](https://tiup.io).
 
-2. Initialize TCPH Database
+2. Initialize TPCH Database
 
     Recommand [go-tpc](https://github.com/pingcap/go-tpc).
     ```bash

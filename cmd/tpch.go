@@ -51,7 +51,6 @@ func tpch(*cli.Context) error {
 	}
 	gen := generator.NewTpcHGenerator()
 	scope = horoscope.NewHoroscope(exec, gen)
-	step := 0
 	for {
 		benches, err := scope.Step(round)
 		if err != nil {
@@ -61,24 +60,23 @@ func tpch(*cli.Context) error {
 		if benches == nil {
 			break
 		}
-		step++
 
 		log.WithFields(log.Fields{
+			"query id":      benches.QueryID,
 			"query":         benches.SQL,
-			"step":          step,
 			"default plan":  benches.DefaultPlan,
 			"default hints": benches.Hints,
 			"cost":          fmt.Sprintf("%dms", benches.Cost.Milliseconds()),
 			"plan size":     len(benches.Plans),
 		}).Info("Complete a step")
 		log.WithFields(log.Fields{
-			"step":        step,
+			"query id":    benches.QueryID,
 			"explanation": benches.Explanation.String(),
 		}).Debug("Default explanation")
 		for _, plan := range benches.Plans {
 			if plan.Cost < benches.Cost && plan.Plan != benches.DefaultPlan {
 				log.WithFields(log.Fields{
-					"step":         step,
+					"query id":     benches.QueryID,
 					"better plan":  plan.Plan,
 					"better hints": plan.Hints,
 				}).Errorf(
@@ -87,7 +85,7 @@ func tpch(*cli.Context) error {
 					benches.Cost.Milliseconds(),
 				)
 				log.WithFields(log.Fields{
-					"step":               step,
+					"query id":           benches.QueryID,
 					"better explanation": plan.Explanation.String(),
 				}).Debug("Better explanation")
 			}
@@ -107,7 +105,7 @@ func tpchPrepare() error {
 	log.Infof("Warming up...")
 	gen := generator.NewTpcHGenerator()
 	for {
-		queryNode := gen.Query()
+		_, queryNode := gen.Query()
 		if queryNode == nil {
 			break
 		}

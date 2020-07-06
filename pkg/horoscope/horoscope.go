@@ -47,6 +47,7 @@ type (
 	}
 
 	Benches struct {
+		QueryID     string
 		SQL         string
 		Query       ast.StmtNode
 		Round       uint
@@ -62,7 +63,7 @@ func NewHoroscope(exec executor.Executor, gen generator.Generator) *Horoscope {
 	return &Horoscope{exec: exec, gen: gen}
 }
 
-func (h *Horoscope) InitBenches(query ast.StmtNode, round uint) (benches *Benches, err error) {
+func (h *Horoscope) InitBenches(query ast.StmtNode, round uint, queryID string) (benches *Benches, err error) {
 	sql, err := BufferOut(query)
 	if err != nil {
 		return
@@ -79,6 +80,7 @@ func (h *Horoscope) InitBenches(query ast.StmtNode, round uint) (benches *Benche
 	}
 
 	benches = &Benches{
+		QueryID:     queryID,
 		Round:       round,
 		SQL:         sql,
 		Query:       query,
@@ -139,12 +141,12 @@ func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, 
 }
 
 func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
-	query := h.gen.Query()
+	qID, query := h.gen.Query()
 	if query == nil {
 		return
 	}
 
-	benches, err = h.InitBenches(query, round)
+	benches, err = h.InitBenches(query, round, qID)
 
 	if err != nil {
 		return
@@ -157,6 +159,12 @@ func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
 
 	benches.Cost = originDur
 
+	log.WithFields(log.Fields{
+		"query id": qID,
+		"query":    benches.SQL,
+		"cost":     fmt.Sprintf("%dms", originDur.Milliseconds()),
+	}).Info("complete origin query")
+
 	rowsSet := make([][]executor.Rows, 0)
 
 	for _, plan := range benches.Plans {
@@ -164,10 +172,15 @@ func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
 		var rows []executor.Rows
 
 		dur, rows, err = h.QueryWithTime(round, plan.SQL)
-
 		if err != nil {
 			return
 		}
+
+		log.WithFields(log.Fields{
+			"query id": qID,
+			"query":    plan.SQL,
+			"cost":     fmt.Sprintf("%dms", dur.Milliseconds()),
+		}).Infof("complete execution plan%d", plan.Plan)
 
 		rowsSet = append(rowsSet, rows)
 		plan.Cost = dur

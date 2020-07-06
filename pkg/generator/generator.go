@@ -17,12 +17,12 @@ import "github.com/pingcap/parser/ast"
 
 type (
 	Generator interface {
-		Query() ast.StmtNode
+		Query() (queryID string, queryStmt ast.StmtNode)
 	}
 
-	GeneratorFunc func() ast.StmtNode
+	GeneratorFunc func() (string, ast.StmtNode)
 )
 
-func (g GeneratorFunc) Query() ast.StmtNode {
+func (g GeneratorFunc) Query() (string, ast.StmtNode) {
 	return g()
 }
