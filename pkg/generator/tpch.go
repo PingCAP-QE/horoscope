@@ -14,6 +14,7 @@
 package generator
 
 import (
+	"fmt"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	_ "github.com/pingcap/tidb/types/parser_driver"
@@ -25,13 +26,14 @@ type TpcHGenerator struct {
 	index  int
 }
 
-func (g *TpcHGenerator) Query() ast.StmtNode {
+func (g *TpcHGenerator) Query() (string, ast.StmtNode) {
 	if g.index >= len(queries) {
-		return nil
+		return "", nil
 	}
-
-	stmt, warns, err := g.parser.Parse(queries[g.index], "", "")
+	queryId := g.index
 	g.index++
+
+	stmt, warns, err := g.parser.Parse(queries[queryId], "", "")
 
 	if err != nil || len(warns) > 0 || len(stmt) != 1 {
 		if err != nil {
@@ -52,8 +54,7 @@ func (g *TpcHGenerator) Query() ast.StmtNode {
 
 		return g.Query()
 	}
-
-	return stmt[0]
+	return fmt.Sprintf("q%d", queryId+1), stmt[0]
 }
 
 func NewTpcHGenerator() Generator {
