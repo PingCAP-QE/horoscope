@@ -64,13 +64,13 @@ var (
 			}
 
 			scope := horoscope.NewHoroscope(exec, generator.BlankGenerator)
-			dur, rows, err := scope.QueryWithTime(round, plan, tp)
+			dur, rows, err := scope.RunSQLWithTime(round, plan, tp)
 			if err != nil {
 				return err
 			}
 
 			log.WithField("query", plan).Debug("Complete query")
-			fmt.Printf("%s\nComplete in %s", rows[0].String(), dur)
+			fmt.Printf("%s\nComplete in %vms", rows[0].String(), dur.Values)
 			return nil
 		},
 	}

@@ -51,6 +51,7 @@ func tpch(*cli.Context) error {
 	}
 	gen := generator.NewTpcHGenerator()
 	scope = horoscope.NewHoroscope(exec, gen)
+	var collection horoscope.BenchCollection
 	for {
 		benches, err := scope.Step(round)
 		if err != nil {
@@ -60,29 +61,29 @@ func tpch(*cli.Context) error {
 		if benches == nil {
 			break
 		}
-
 		log.WithFields(log.Fields{
 			"query id":      benches.QueryID,
 			"query":         benches.SQL,
 			"default plan":  benches.DefaultPlan,
 			"default hints": benches.Hints,
-			"cost":          fmt.Sprintf("%dms", benches.Cost.Milliseconds()),
+			"cost":          fmt.Sprintf("%v", benches.Cost.Values),
 			"plan size":     len(benches.Plans),
 		}).Info("Complete a step")
 		log.WithFields(log.Fields{
 			"query id":    benches.QueryID,
 			"explanation": benches.Explanation.String(),
 		}).Debug("Default explanation")
+		collection = append(collection, benches)
 		for _, plan := range benches.Plans {
-			if plan.Cost < benches.Cost && plan.Plan != benches.DefaultPlan {
+			if plan.Cost.Mean < benches.Cost.Mean && plan.Plan != benches.DefaultPlan {
 				log.WithFields(log.Fields{
 					"query id":     benches.QueryID,
 					"better plan":  plan.Plan,
 					"better hints": plan.Hints,
 				}).Errorf(
-					"choose wrong plan(%dms < %dms)",
-					plan.Cost.Milliseconds(),
-					benches.Cost.Milliseconds(),
+					"may choose a suboptimal plan(%0.2fms < %0.2fms)",
+					plan.Cost.Mean,
+					benches.Cost.Mean,
 				)
 				log.WithFields(log.Fields{
 					"query id":           benches.QueryID,
@@ -91,13 +92,14 @@ func tpch(*cli.Context) error {
 			}
 		}
 	}
+	fmt.Print(collection.Table().String())
 	return nil
 }
 
 func tpchPrepare() error {
 	for _, table := range tables {
 		log.Infof("Analyzing table %s...", table)
-		_, err := exec.Exec(fmt.Sprintf("analyze table %s", table), 1)
+		_, err := exec.Exec(fmt.Sprintf("analyze table %s", table))
 		if err != nil {
 			return err
 		}
@@ -115,7 +117,7 @@ func tpchPrepare() error {
 		if err != nil {
 			return err
 		}
-		_, err = exec.Query(query, 1)
+		_, err = exec.Query(query)
 		if err != nil {
 			return err
 		}

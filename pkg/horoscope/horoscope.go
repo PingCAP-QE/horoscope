@@ -19,13 +19,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chaos-mesh/horoscope/pkg/executor"
-	"github.com/chaos-mesh/horoscope/pkg/generator"
-
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/model"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/perf/benchstat"
+
+	"github.com/chaos-mesh/horoscope/pkg/executor"
+	"github.com/chaos-mesh/horoscope/pkg/generator"
 )
 
 const (
@@ -42,28 +43,6 @@ type (
 		exec executor.Executor
 		gen  generator.Generator
 	}
-
-	Bench struct {
-		Plan        int64
-		SQL         string
-		Hints       executor.Hints
-		Explanation executor.Rows
-		Cost        time.Duration
-	}
-
-	Benches struct {
-		QueryID     string
-		SQL         string
-		Query       ast.StmtNode
-		Type        QueryType
-		Round       uint
-		Hints       executor.Hints
-		Cost        time.Duration
-		DefaultPlan int64
-		Explanation executor.Rows
-		Plans       []*Bench
-	}
-
 	QueryType uint8
 )
 
@@ -134,31 +113,50 @@ func (h *Horoscope) InitBenches(query ast.StmtNode, round uint, queryID string) 
 			benches.DefaultPlan = id
 		}
 
-		benches.Plans = append(benches.Plans, &Bench{
-			Hints:       hints,
-			Explanation: explanation,
-			Plan:        id,
-			SQL:         plan,
-		})
+		benches.Plans = append(benches.Plans,
+			&Bench{
+				Hints:       hints,
+				Explanation: explanation,
+				Plan:        id,
+				SQL:         plan,
+			})
 	}
 }
 
-func (h *Horoscope) QueryWithTime(round uint, query string, tp QueryType) (dur time.Duration, list []executor.Comparable, err error) {
+func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Durations, []executor.Comparable, error) {
+	var (
+		costs = Durations(benchstat.Metrics{
+			Unit: "ms",
+		})
+		list []executor.Comparable
+		err  error
+	)
+
 	log.WithFields(log.Fields{
 		"query": query,
 		"round": round,
 	}).Debug("query with time")
-	start := time.Now()
-	switch tp {
-	case DQL:
-		list, err = h.exec.Query(query, round)
-	case DML:
-		list, err = h.exec.Exec(query, round)
-	default:
-		panic("Query type should be checked in `InitBenches`")
+
+	for i := 0; i < int(round); i++ {
+		start := time.Now()
+		var rows executor.Comparable
+		switch tp {
+		case DQL:
+			rows, err = h.exec.Query(query)
+		case DML:
+			rows, err = h.exec.Exec(query)
+		default:
+			panic("Query type should be checked in `InitBenches`")
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		costs.Values = append(costs.Values, float64(time.Since(start).Microseconds()/1000))
+		list = append(list, rows)
 	}
-	dur = time.Since(start)
-	return
+
+	costs.computeStats()
+	return &costs, list, err
 }
 
 func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
@@ -173,7 +171,7 @@ func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
 		return
 	}
 
-	originDur, originList, err := h.QueryWithTime(round, benches.SQL, benches.Type)
+	originDur, originList, err := h.RunSQLWithTime(round, benches.SQL, benches.Type)
 	if err != nil {
 		return
 	}
@@ -183,28 +181,26 @@ func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
 	log.WithFields(log.Fields{
 		"query id": qID,
 		"query":    benches.SQL,
-		"cost":     fmt.Sprintf("%dms", originDur.Milliseconds()),
+		"cost":     fmt.Sprintf("%vms", originDur.Values),
 	}).Info("complete origin query")
 
 	rowsSet := make([][]executor.Comparable, 0)
 
 	for _, plan := range benches.Plans {
-		var dur time.Duration
-		var list []executor.Comparable
-
-		dur, list, err = h.QueryWithTime(round, plan.SQL, benches.Type)
+		var rows []executor.Comparable
+		durs, rows, err := h.RunSQLWithTime(round, plan.SQL, benches.Type)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		log.WithFields(log.Fields{
 			"query id": qID,
 			"query":    plan.SQL,
-			"cost":     fmt.Sprintf("%dms", dur.Milliseconds()),
+			"cost":     fmt.Sprintf("%vms", durs.Values),
 		}).Infof("complete execution plan%d", plan.Plan)
 
-		rowsSet = append(rowsSet, list)
-		plan.Cost = dur
+		rowsSet = append(rowsSet, rows)
+		plan.Cost = durs
 	}
 
 	err = verifyQueryResult(originList, rowsSet)
