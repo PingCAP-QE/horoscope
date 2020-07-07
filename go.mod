@@ -3,8 +3,11 @@ module github.com/chaos-mesh/horoscope
 go 1.13
 
 require (
+	github.com/aclements/go-moremath v0.0.0-20161014184102-0ff62e0875ff
+	github.com/go-openapi/strfmt v0.19.5 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/protobuf v1.4.2 // indirect
+	github.com/jedib0t/go-pretty v4.3.0+incompatible
 	github.com/pingcap/go-tpc v1.0.3 // indirect
 	github.com/pingcap/parser v0.0.0-20200612092132-17a1160e5a81
 	github.com/pingcap/tidb v2.0.11+incompatible
@@ -13,6 +16,7 @@ require (
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1
 	github.com/urfave/cli/v2 v2.2.0
+	golang.org/x/perf v0.0.0-20200318175901-9c9101da8316
 	golang.org/x/sys v0.0.0-20200610111108-226ff32320da // indirect
 	google.golang.org/protobuf v1.24.0 // indirect
 )

@@ -31,13 +31,13 @@ var queryCommand = &cli.Command{
 			log.Fatal("Empty query")
 		}
 		scope := horoscope.NewHoroscope(exec, generator.BlankGenerator)
-		dur, rows, err := scope.QueryWithTime(round, query)
+		durs, rows, err := scope.QueryWithTime(round, query)
 		if err != nil {
 			return err
 		}
 
 		log.WithField("rows", rows).Debugf("Complete query `%s`", query)
-		log.WithField("duration", dur).Infof("Complete in %dms", dur.Milliseconds())
+		log.WithField("duration", durs).Infof("Complete in %v", durs)
 		return nil
 	},
 }

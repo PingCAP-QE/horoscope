@@ -26,8 +26,8 @@ import (
 type (
 	QueryMode uint8
 	Executor  interface {
-		Query(query string, round uint) ([]Rows, error)
-		Exec(query string, round uint) ([]Result, error)
+		Query(query string) (Rows, error)
+		Exec(query string) (Result, error)
 		GetHints(query string) (Hints, error)
 		IsSamePlan(q1, q2 string) (equal bool, err error)
 	}
@@ -52,60 +52,47 @@ func (e *MySQLExecutor) EnterTx(options *sql.TxOptions, task func(tx *sql.Tx) er
 	return task(tx)
 }
 
-func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
-	rowsList := make([]Rows, 0, round)
+func (e *MySQLExecutor) Query(query string) (Rows, error) {
+	var row Rows
 	err := e.EnterTx(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead}, func(tx *sql.Tx) error {
-		var i uint
-		for i = 0; i < round; i++ {
-			data, err := tx.Query(query)
-			if err != nil {
-				return err
-			}
+		data, err := tx.Query(query)
+		if err != nil {
+			return err
+		}
 
-			row, err := NewRows(data)
-			if err != nil {
-				return err
-			}
+		row, err = NewRows(data)
+		if err != nil {
+			return err
+		}
 
-			err = queryWarning(tx)
-			if err != nil {
-				return err
-			}
-
-			rowsList = append(rowsList, row)
+		err = queryWarning(tx)
+		if err != nil {
+			return err
 		}
 		return nil
 	})
-	return rowsList, err
+	return row, err
 }
 
-func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err error) {
-	results = make([]Result, 0, round)
-	var i uint
-	for i = 0; i < round; i++ {
-		err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) error {
-			data, err := tx.Exec(query)
-			if err != nil {
-				return err
-			}
-
-			result, err := NewResult(data)
-			if err != nil {
-				return err
-			}
-
-			err = queryWarning(tx)
-			if err != nil {
-				return err
-			}
-
-			results = append(results, result)
-			return nil
-		})
+func (e *MySQLExecutor) Exec(query string) (result Result, err error) {
+	err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) error {
+		data, err := tx.Exec(query)
 		if err != nil {
-			break
+			return err
 		}
-	}
+
+		result, err = NewResult(data)
+		if err != nil {
+			return err
+		}
+
+		err = queryWarning(tx)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 	return
 }
 

@@ -51,17 +51,18 @@ func tpch(*cli.Context) error {
 	}
 	gen := generator.NewTpcHGenerator()
 	scope = horoscope.NewHoroscope(exec, gen)
+	var collection horoscope.Collection
 	for {
 		results, err := scope.Step(round)
 		if err != nil {
 			return err
 		}
-
 		if results == nil {
 			break
 		}
+		collection = append(collection, results)
 		for _, result := range results.Plans {
-			if result.Cost < results.Origin.Cost {
+			if result.Durations.Mean < results.Origin.Durations.Mean {
 				same, err := exec.IsSamePlan(results.Origin.Sql, result.Sql)
 				if err != nil {
 					return err
@@ -82,21 +83,22 @@ func tpch(*cli.Context) error {
 						"default plan": defaultHints.String(),
 						"better plan":  hints.String(),
 					}).Errorf(
-						"choose wrong plan(%dms < %dms)",
-						result.Cost.Milliseconds(),
-						results.Origin.Cost.Milliseconds(),
+						"may choose a wrong default plan(%.2fms < %.2fms)",
+						result.Durations.Mean,
+						results.Origin.Durations.Mean,
 					)
 				}
 			}
 		}
 	}
+	log.Infof(collection.Table().String())
 	return nil
 }
 
 func tpchPrepare() error {
 	for _, table := range tables {
 		log.Infof("Analyzing table %s...", table)
-		_, err := exec.Exec(fmt.Sprintf("analyze table %s", table), 1)
+		_, err := exec.Exec(fmt.Sprintf("analyze table %s", table))
 		if err != nil {
 			return err
 		}
@@ -114,7 +116,7 @@ func tpchPrepare() error {
 		if err != nil {
 			return err
 		}
-		_, err = exec.Query(query, 1)
+		_, err = exec.Query(query)
 		if err != nil {
 			return err
 		}
