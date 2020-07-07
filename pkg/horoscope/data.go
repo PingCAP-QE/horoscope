@@ -15,10 +15,11 @@ package horoscope
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/aclements/go-moremath/stats"
 	"github.com/pingcap/parser/ast"
 	"golang.org/x/perf/benchstat"
-	"math"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
