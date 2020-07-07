@@ -28,6 +28,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	DQL QueryType = iota
+	DML
+)
+
 var (
 	PlanHint = model.NewCIStr("NTH_PLAN")
 )
@@ -50,6 +55,7 @@ type (
 		QueryID     string
 		SQL         string
 		Query       ast.StmtNode
+		Type        QueryType
 		Round       uint
 		Hints       executor.Hints
 		Cost        time.Duration
@@ -57,6 +63,8 @@ type (
 		Explanation executor.Rows
 		Plans       []*Bench
 	}
+
+	QueryType uint8
 )
 
 func NewHoroscope(exec executor.Executor, gen generator.Generator) *Horoscope {
@@ -89,12 +97,18 @@ func (h *Horoscope) InitBenches(query ast.StmtNode, round uint, queryID string) 
 		Plans:       make([]*Bench, 0),
 	}
 
+	var optHints *[]*ast.TableOptimizerHint
+	benches.Type, optHints, err = AnalyzeQuery(query, sql)
+	if err != nil {
+		return
+	}
+
 	var id int64 = 1
 	for ; ; id++ {
 		var plan string
 		var warnings []error
 
-		plan, err = Plan(query, id)
+		plan, err = Plan(query, optHints, id)
 		if err != nil {
 			return
 		}
@@ -129,13 +143,20 @@ func (h *Horoscope) InitBenches(query ast.StmtNode, round uint, queryID string) 
 	}
 }
 
-func (h *Horoscope) QueryWithTime(round uint, query string) (dur time.Duration, list []executor.Rows, err error) {
+func (h *Horoscope) QueryWithTime(round uint, query string, tp QueryType) (dur time.Duration, list []executor.Comparable, err error) {
 	log.WithFields(log.Fields{
 		"query": query,
 		"round": round,
 	}).Debug("query with time")
 	start := time.Now()
-	list, err = h.exec.Query(query, round)
+	switch tp {
+	case DQL:
+		list, err = h.exec.Query(query, round)
+	case DML:
+		list, err = h.exec.Exec(query, round)
+	default:
+		panic("Query type should be checked in `InitBenches`")
+	}
 	dur = time.Since(start)
 	return
 }
@@ -152,7 +173,7 @@ func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
 		return
 	}
 
-	originDur, originList, err := h.QueryWithTime(round, benches.SQL)
+	originDur, originList, err := h.QueryWithTime(round, benches.SQL, benches.Type)
 	if err != nil {
 		return
 	}
@@ -165,13 +186,13 @@ func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
 		"cost":     fmt.Sprintf("%dms", originDur.Milliseconds()),
 	}).Info("complete origin query")
 
-	rowsSet := make([][]executor.Rows, 0)
+	rowsSet := make([][]executor.Comparable, 0)
 
 	for _, plan := range benches.Plans {
 		var dur time.Duration
-		var rows []executor.Rows
+		var list []executor.Comparable
 
-		dur, rows, err = h.QueryWithTime(round, plan.SQL)
+		dur, list, err = h.QueryWithTime(round, plan.SQL, benches.Type)
 		if err != nil {
 			return
 		}
@@ -182,7 +203,7 @@ func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
 			"cost":     fmt.Sprintf("%dms", dur.Milliseconds()),
 		}).Infof("complete execution plan%d", plan.Plan)
 
-		rowsSet = append(rowsSet, rows)
+		rowsSet = append(rowsSet, list)
 		plan.Cost = dur
 	}
 
@@ -210,7 +231,7 @@ func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
 	return nil
 }
 
-func verifyQueryResult(origin []executor.Rows, lists [][]executor.Rows) (err error) {
+func verifyQueryResult(origin []executor.Comparable, lists [][]executor.Comparable) (err error) {
 	for _, list := range lists {
 		if !verifyList(origin, list) {
 			return errors.New(fmt.Sprintf("query results verification fails: origin(%#v), result(%#v", origin, list))
@@ -219,7 +240,7 @@ func verifyQueryResult(origin []executor.Rows, lists [][]executor.Rows) (err err
 	return
 }
 
-func verifyList(one, other []executor.Rows) bool {
+func verifyList(one, other []executor.Comparable) bool {
 	if len(one) != len(other) {
 		return false
 	}
@@ -231,18 +252,35 @@ func verifyList(one, other []executor.Rows) bool {
 	return true
 }
 
-func Plan(node ast.StmtNode, planId int64) (string, error) {
-	switch stmt := node.(type) {
-	case *ast.SelectStmt:
-		if planHint := findPlanHint(stmt.TableHints); planHint != nil {
+func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId int64) (string, error) {
+	if planId > 0 {
+		if planHint := findPlanHint(*hints); planHint != nil {
 			planHint.HintData = planId
 		} else {
-			stmt.TableHints = []*ast.TableOptimizerHint{
-				{HintName: PlanHint, HintData: planId},
-			}
+			*hints = append(*hints, &ast.TableOptimizerHint{
+				HintName: PlanHint, HintData: planId,
+			})
 		}
-	default:
-		return "", errors.New("unsupported statement")
 	}
 	return BufferOut(node)
+}
+
+func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.TableOptimizerHint, err error) {
+	switch stmt := query.(type) {
+	case *ast.SelectStmt:
+		tp = DQL
+		hints = &stmt.TableHints
+	case *ast.InsertStmt:
+		tp = DML
+		hints = &stmt.TableHints
+	case *ast.UpdateStmt:
+		tp = DML
+		hints = &stmt.TableHints
+	case *ast.DeleteStmt:
+		tp = DML
+		hints = &stmt.TableHints
+	default:
+		err = errors.New(fmt.Sprintf("Unsupported query: %s", sql))
+	}
+	return
 }

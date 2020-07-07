@@ -11,35 +11,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package executor
+package main
 
 import (
-	"database/sql"
+	"errors"
 	"fmt"
+
+	"github.com/pingcap/parser"
+	"github.com/pingcap/parser/ast"
 )
 
-type Result struct {
-	LastInsertId, RowsAffected int64
-}
-
-func NewResult(result sql.Result) (ret Result, err error) {
-	ret.LastInsertId, err = result.LastInsertId()
+func Parse(sql string) (stmt ast.StmtNode, err error) {
+	stmts, warns, err := parser.New().Parse(sql, "", "")
 	if err != nil {
 		return
 	}
 
-	ret.RowsAffected, err = result.RowsAffected()
-	return
-}
-
-func (r Result) Equal(other Comparable) bool {
-	if otherResult, ok := other.(Result); ok {
-		return r == otherResult
-	} else {
-		return false
+	for _, warn := range warns {
+		if warn != nil {
+			err = warn
+			return
+		}
 	}
-}
 
-func (r Result) String() string {
-	return fmt.Sprintf("OK. LastInsertId: %d, RowsAffected: %d", r.LastInsertId, r.RowsAffected)
+	if len(stmts) != 1 {
+		err = errors.New(fmt.Sprintf("Invalid statement: %s", sql))
+		return
+	}
+	stmt = stmts[0]
+	return
 }

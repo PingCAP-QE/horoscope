@@ -28,8 +28,8 @@ type (
 	Executor  interface {
 		QueryOnce(query string) (Rows, error)
 		ExecOnce(query string) (Result, error)
-		Query(query string, round uint) ([]Rows, error)
-		Exec(query string, round uint) ([]Result, error)
+		Query(query string, round uint) ([]Comparable, error)
+		Exec(query string, round uint) ([]Comparable, error)
 		GetHints(query string) (Hints, []error, error)
 		Explain(query string) (Rows, error)
 	}
@@ -54,8 +54,8 @@ func (e *MySQLExecutor) EnterTx(options *sql.TxOptions, task func(tx *sql.Tx) er
 	return
 }
 
-func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
-	rowsList := make([]Rows, 0, round)
+func (e *MySQLExecutor) Query(query string, round uint) ([]Comparable, error) {
+	rowsList := make([]Comparable, 0, round)
 	err := e.EnterTx(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead}, func(tx *sql.Tx) error {
 		var i uint
 		for i = 0; i < round; i++ {
@@ -77,44 +77,52 @@ func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
 }
 
 func (e *MySQLExecutor) QueryOnce(query string) (Rows, error) {
-	rowSet, err := e.Query(query, 1)
-	if err != nil {
-		return Rows{}, err
-	}
-	return rowSet[0], nil
+	var rows Rows
+	err := e.EnterTx(nil, func(tx *sql.Tx) error {
+		data, err := tx.Query(query)
+		if err != nil {
+			return err
+		}
+
+		rows, err = NewRows(data)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	return rows, err
 }
 
-func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err error) {
-	results = make([]Result, 0, round)
+func (e *MySQLExecutor) Exec(query string, round uint) (results []Comparable, err error) {
+	results = make([]Comparable, 0, round)
 	var i uint
 	for i = 0; i < round; i++ {
-		err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) error {
-			data, err := tx.Exec(query)
-			if err != nil {
-				return err
-			}
-
-			result, err := NewResult(data)
-			if err != nil {
-				return err
-			}
-
-			results = append(results, result)
-			return nil
-		})
+		var result Result
+		result, err = e.ExecOnce(query)
 		if err != nil {
 			break
 		}
+		results = append(results, result)
 	}
 	return
 }
 
 func (e *MySQLExecutor) ExecOnce(query string) (Result, error) {
-	results, err := e.Exec(query, 1)
-	if err != nil {
-		return Result{}, err
-	}
-	return results[0], nil
+	var result Result
+	err := e.EnterTx(&sql.TxOptions{Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) error {
+		data, err := tx.Exec(query)
+		if err != nil {
+			return err
+		}
+
+		result, err = NewResult(data)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return result, err
 }
 
 /// GetHints would query plan out of range warnings
@@ -124,7 +132,7 @@ func (e *MySQLExecutor) GetHints(query string) (hints Hints, warnings []error, e
 		if err != nil {
 			return
 		}
-		// TODO: check warning in "explain format = 'verbose'"
+		// TODO: check warning in "Explain"
 		warnings, err = queryWarnings(tx)
 		return
 	})

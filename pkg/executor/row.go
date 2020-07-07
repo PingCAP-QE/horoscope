@@ -81,17 +81,24 @@ func (r Row) ToTableRow() table.Row {
 	return tableRow
 }
 
-func (r Rows) Equal(other Rows) bool {
-	if r.Rows() != other.Rows() || r.Columns() != other.Columns() {
+func (r Rows) Equal(other Comparable) bool {
+	otherRows, ok := other.(Rows)
+
+	if !ok {
 		return false
 	}
+
+	if r.Rows() != otherRows.Rows() || r.Columns() != otherRows.Columns() {
+		return false
+	}
+
 	for i, column := range r.columns {
-		if column != other.columns[i] {
+		if column != otherRows.columns[i] {
 			return false
 		}
 	}
 	for i, row := range r.data {
-		if !row.Equal(other.data[i]) {
+		if !row.Equal(otherRows.data[i]) {
 			return false
 		}
 	}

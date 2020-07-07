@@ -14,30 +14,64 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"os"
+
 	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 )
 
-var queryCommand = &cli.Command{
-	Name:    "query",
-	Aliases: []string{"q"},
-	Usage:   "Execute a query",
-	Action: func(context *cli.Context) error {
-		query := context.Args().Get(0)
-		if query == "" {
-			log.Fatal("Empty query")
-		}
-		scope := horoscope.NewHoroscope(exec, generator.BlankGenerator)
-		dur, rows, err := scope.QueryWithTime(round, query)
-		if err != nil {
-			return err
-		}
+var (
+	planID int64 = 0
 
-		log.WithField("rows", rows).Debugf("Complete query `%s`", query)
-		log.WithField("duration", dur).Infof("Complete in %dms", dur.Milliseconds())
-		return nil
-	},
-}
+	queryCommand = &cli.Command{
+		Name:    "query",
+		Aliases: []string{"q"},
+		Usage:   "Execute a query",
+		Flags: []cli.Flag{
+			&cli.Int64Flag{
+				Name:        "plan",
+				Aliases:     []string{"p"},
+				Usage:       "Use plan by `ID`",
+				Destination: &planID,
+			},
+		},
+		Action: func(context *cli.Context) error {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Print("tidb> ")
+			sql, err := reader.ReadString('\n')
+			if err != nil {
+				return err
+			}
+
+			query, err := Parse(sql)
+			if err != nil {
+				return err
+			}
+
+			tp, hints, err := horoscope.AnalyzeQuery(query, sql)
+			if err != nil {
+				return err
+			}
+
+			plan, err := horoscope.Plan(query, hints, planID)
+			if err != nil {
+				return err
+			}
+
+			scope := horoscope.NewHoroscope(exec, generator.BlankGenerator)
+			dur, rows, err := scope.QueryWithTime(round, plan, tp)
+			if err != nil {
+				return err
+			}
+
+			log.WithField("query", plan).Debug("Complete query")
+			fmt.Printf("%s\nComplete in %s", rows[0].String(), dur)
+			return nil
+		},
+	}
+)
