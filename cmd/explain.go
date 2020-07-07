@@ -14,18 +14,51 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 
 	"github.com/urfave/cli/v2"
+
+	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 )
 
 var explainCommand = &cli.Command{
 	Name:    "explain",
 	Aliases: []string{"e"},
-	Usage:   "explain a query",
+	Usage:   "Explain a query",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:        "plan",
+			Aliases:     []string{"p"},
+			Usage:       "Use plan by `ID`",
+			Destination: &planID,
+		},
+	},
 	Action: func(context *cli.Context) error {
-		query := context.Args().Get(0)
-		rows, err := exec.Explain(query)
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("tidb> ")
+		sql, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+
+		query, err := Parse(sql)
+		if err != nil {
+			return err
+		}
+
+		_, hints, err := horoscope.AnalyzeQuery(query, sql)
+		if err != nil {
+			return err
+		}
+
+		plan, err := horoscope.Plan(query, hints, planID)
+		if err != nil {
+			return err
+		}
+
+		rows, err := exec.Explain(plan)
 		if err != nil {
 			return err
 		}
