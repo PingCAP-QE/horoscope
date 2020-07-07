@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"github.com/jedib0t/go-pretty/table"
 	"golang.org/x/perf/benchstat"
+	"strings"
 )
 
 // Table is used for displaying in output
@@ -32,12 +33,14 @@ type Row struct {
 	PlanSpaceCount int
 	DefaultPlanDur string
 	BestPlanDur    string
+	OptimalPlan    []string
 	Effectiveness  float64
 }
 
 func (r *Row) toTableRows() table.Row {
 	var row table.Row
-	row = append(row, r.QueryId, r.PlanSpaceCount, r.DefaultPlanDur, r.BestPlanDur, fmt.Sprintf("%.1f%%", r.Effectiveness*100), r.Query)
+	row = append(row, r.QueryId, r.PlanSpaceCount, r.DefaultPlanDur, r.BestPlanDur,
+		fmt.Sprintf("%.1f%%", r.Effectiveness*100), strings.Join(r.OptimalPlan, ","), r.Query)
 	return row
 }
 
@@ -45,9 +48,9 @@ type BenchCollection []*Benches
 
 func (c *BenchCollection) Table() Table {
 	alpha := 0.05
-	table := Table{Metric: "execution time", Headers: []string{"id", "#plan space", "default execution time", "best plan execution time", "effectiveness", "query"}}
+	table := Table{Metric: "execution time", Headers: []string{"id", "#plan space", "default execution time", "best plan execution time", "effectiveness", "better optimal plans", "query"}}
 	for _, b := range *c {
-		defaultPlanDurs, bestPlanDurs, betterPlanCount := b.Cost, b.Cost, 0
+		defaultPlanDurs, bestPlanDurs, betterPlanCount, optimalPlan := b.Cost, b.Cost, 0, make([]string, 0)
 
 		for _, p := range b.Plans {
 			if p.Cost.Mean < defaultPlanDurs.Mean {
@@ -69,6 +72,7 @@ func (c *BenchCollection) Table() Table {
 				})
 				if testerr != nil || testerr == nil && pval < alpha {
 					betterPlanCount += 1
+					optimalPlan = append(optimalPlan, fmt.Sprintf("#%d(%0.1f%%)", p.Plan, 100*currentPlanDurs.Mean/defaultPlanDurs.Mean))
 					if currentPlanDurs.Mean < bestPlanDurs.Mean {
 						bestPlanDurs = currentPlanDurs
 					}
@@ -82,6 +86,7 @@ func (c *BenchCollection) Table() Table {
 			PlanSpaceCount: len(b.Plans),
 			DefaultPlanDur: b.Cost.format(),
 			BestPlanDur:    bestPlanDurs.format(),
+			OptimalPlan:    optimalPlan,
 			Effectiveness:  float64(planSpaceCount-betterPlanCount) / float64(planSpaceCount),
 		}
 		table.Rows = append(table.Rows, &row)
