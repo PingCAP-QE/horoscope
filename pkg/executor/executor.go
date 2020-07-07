@@ -49,8 +49,8 @@ func (e *MySQLExecutor) EnterTx(options *sql.TxOptions, task func(tx *sql.Tx) er
 			err = rollbackError
 		}
 	}()
-
-	return task(tx)
+	err = task(tx)
+	return
 }
 
 func (e *MySQLExecutor) Query(query string, round uint) ([]Rows, error) {
@@ -115,6 +115,7 @@ func (e *MySQLExecutor) GetHints(query string) (hints Hints, warnings []error, e
 		if err != nil {
 			return
 		}
+		// TODO: check warning in "explain format = 'verbose'"
 		warnings, err = queryWarnings(tx)
 		return
 	})
