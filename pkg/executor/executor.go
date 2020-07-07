@@ -27,6 +27,7 @@ type (
 	QueryMode uint8
 	Executor  interface {
 		QueryOnce(query string) (Rows, error)
+		ExecOnce(query string) (Result, error)
 		Query(query string, round uint) ([]Rows, error)
 		Exec(query string, round uint) ([]Result, error)
 		GetHints(query string) (Hints, []error, error)
@@ -106,6 +107,14 @@ func (e *MySQLExecutor) Exec(query string, round uint) (results []Result, err er
 		}
 	}
 	return
+}
+
+func (e *MySQLExecutor) ExecOnce(query string) (Result, error) {
+	results, err := e.Exec(query, 1)
+	if err != nil {
+		return Result{}, err
+	}
+	return results[0], nil
 }
 
 /// GetHints would query plan out of range warnings
