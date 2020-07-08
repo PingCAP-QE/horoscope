@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	typePattern = regexp.MustCompile(`([a-z]*)\(?(.*)\)?`)
+	typePattern = regexp.MustCompile(`([a-z]*)\(?([\d,]*)\)?`)
 )
 
 // Column defines database column
@@ -39,6 +39,14 @@ type Column struct {
 
 func (c Column) String() string {
 	return fmt.Sprintf("%s.%s", c.Table.Name, c.Name)
+}
+
+func (c Column) FullType() string {
+	if c.Args == "" {
+		return c.Type
+	} else {
+		return fmt.Sprintf("%s(%s)", c.Type, c.Args)
+	}
 }
 
 func LoadColumn(table *Table, row executor.Row) (column *Column, err error) {

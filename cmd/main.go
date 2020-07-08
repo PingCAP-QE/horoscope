@@ -93,6 +93,7 @@ func main() {
 			tpchCommand,
 			queryCommand,
 			explainCommand,
+			infoCommand,
 		},
 	}
 
