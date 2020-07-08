@@ -58,7 +58,7 @@ var explainCommand = &cli.Command{
 			return err
 		}
 
-		rows, err := exec.Explain(plan)
+		rows, err := Exec.Explain(plan)
 		if err != nil {
 			return err
 		}

@@ -14,11 +14,13 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
+	"github.com/chaos-mesh/horoscope/pkg/database-types"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
@@ -31,7 +33,8 @@ var (
 	verbose       string
 
 	/// components
-	exec executor.Executor
+	Exec     executor.Executor
+	Database *types.Database
 )
 
 func main() {
@@ -78,7 +81,12 @@ func main() {
 			if err = setupLogger(); err != nil {
 				return
 			}
-			exec, err = executor.NewExecutor(dsn)
+			Exec, err = executor.NewExecutor(dsn)
+			if err != nil {
+				return
+			}
+
+			Database, err = InitDatabase(Exec)
 			return
 		},
 		Commands: cli.Commands{
@@ -114,4 +122,31 @@ func setupLogger() error {
 	}
 
 	return nil
+}
+
+func InitDatabase(exec executor.Executor) (database *types.Database, err error) {
+	dbName, err := exec.Query("SELECT DATABASE()")
+	if err != nil {
+		return
+	}
+	tables, err := exec.Query("SHOW TABLES")
+	if err != nil {
+		return
+	}
+	database, err = types.LoadDatabase(dbName, tables)
+	if err != nil {
+		return
+	}
+	for name, table := range database.Tables {
+		var columns executor.Rows
+		columns, err = exec.Query(fmt.Sprintf("DESC %s", name))
+		if err != nil {
+			return
+		}
+		err = table.LoadColumns(columns)
+		if err != nil {
+			return
+		}
+	}
+	return
 }

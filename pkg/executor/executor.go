@@ -54,7 +54,7 @@ func (e *MySQLExecutor) EnterTx(options *sql.TxOptions, task func(tx *sql.Tx) er
 
 func (e *MySQLExecutor) Query(query string) (Rows, error) {
 	var row Rows
-	err := e.EnterTx(&sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead}, func(tx *sql.Tx) error {
+	err := e.EnterTx(nil, func(tx *sql.Tx) error {
 		data, err := tx.Query(query)
 		if err != nil {
 			return err

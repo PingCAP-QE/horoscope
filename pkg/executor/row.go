@@ -37,7 +37,7 @@ func NewRows(rows *sql.Rows) (ret Rows, err error) {
 		dataSet := make([]interface{}, 0, len(columns))
 		row := make(Row, 0, len(columns))
 		for range columns {
-			dataSet = append(dataSet, new(string))
+			dataSet = append(dataSet, &[]byte{})
 		}
 		err = rows.Scan(dataSet...)
 		if err != nil {
@@ -45,7 +45,7 @@ func NewRows(rows *sql.Rows) (ret Rows, err error) {
 		}
 
 		for _, data := range dataSet {
-			row = append(row, *data.(*string))
+			row = append(row, string(*data.(*[]byte)))
 		}
 		data = append(data, row)
 	}
