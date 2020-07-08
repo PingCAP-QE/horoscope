@@ -15,7 +15,9 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 
+	"github.com/pingcap/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
@@ -24,36 +26,42 @@ import (
 )
 
 var (
-	scope       *horoscope.Horoscope
-	tables      = []string{"lineitem", "orders", "part", "partsupp", "supplier", "customer", "region", "nation"}
-	needPrepare bool
-	tpchCommand = &cli.Command{
-		Name:   "tpch",
-		Usage:  "Test DSN with TPCH",
-		Action: tpch,
+	horo         *horoscope.Horoscope
+	needPrepare  bool
+	workloadDir  string
+	benchCommand = &cli.Command{
+		Name:   "bench",
+		Usage:  "bench the optimizer",
+		Action: bench,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "prepare",
 				Aliases:     []string{"p"},
-				Usage:       "Analyze Table and load stats into memory",
+				Usage:       "prepare before benching",
 				Value:       false,
 				Destination: &needPrepare,
+			},
+			&cli.StringFlag{
+				Name:        "workload",
+				Aliases:     []string{"w"},
+				Usage:       "specify the workload dir",
+				Required:    true,
+				Destination: &workloadDir,
 			},
 		},
 	}
 )
 
-func tpch(*cli.Context) error {
+func bench(*cli.Context) error {
 	if needPrepare {
-		if err := tpchPrepare(); err != nil {
+		if err := prepare(workloadDir); err != nil {
 			return err
 		}
 	}
-	gen := generator.NewTpcHGenerator()
-	scope = horoscope.NewHoroscope(Exec, gen)
+	horo = horoscope.NewHoroscope(Exec, generator.NewStandardGenerator(workloadDir))
 	var collection horoscope.BenchCollection
 	for {
-		benches, err := scope.Step(round)
+		benches, err := horo.Next(round)
 		if err != nil {
 			return err
 		}
@@ -96,31 +104,21 @@ func tpch(*cli.Context) error {
 	return nil
 }
 
-func tpchPrepare() error {
-	for _, table := range tables {
-		log.Infof("Analyzing table %s...", table)
-		_, err := Exec.Exec(fmt.Sprintf("analyze table %s", table))
-		if err != nil {
-			return err
-		}
-	}
-	log.Infof("Warming up...")
-	gen := generator.NewTpcHGenerator()
-	for {
-		_, queryNode := gen.Query()
-		if queryNode == nil {
-			break
-		}
+func prepare(workloadDir string) error {
+	log.WithFields(log.Fields{
+		"workload dir": workloadDir,
+	}).Info("preparing...")
 
-		query, err := horoscope.BufferOut(queryNode)
-		log.WithField("query", query).Debug("warm up query")
-		if err != nil {
-			return err
-		}
-		_, err = Exec.Query(query)
-		if err != nil {
-			return err
-		}
+	sqls, err := ioutil.ReadFile(fmt.Sprintf("%s/prepare.sql", workloadDir))
+	if err != nil {
+		return errors.Trace(err)
 	}
+	_, err = Exec.Exec(string(sqls))
+	if err != nil {
+		return errors.Trace(err)
+	}
+	log.WithFields(log.Fields{
+		"workload dir": workloadDir,
+	}).Info("preparing finished")
 	return nil
 }

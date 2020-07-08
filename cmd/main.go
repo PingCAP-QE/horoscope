@@ -90,7 +90,7 @@ func main() {
 			return
 		},
 		Commands: cli.Commands{
-			tpchCommand,
+			benchCommand,
 			queryCommand,
 			explainCommand,
 			infoCommand,

@@ -50,7 +50,91 @@ func NewHoroscope(exec executor.Executor, gen generator.Generator) *Horoscope {
 	return &Horoscope{exec: exec, gen: gen}
 }
 
-func (h *Horoscope) InitBenches(query ast.StmtNode, round uint, queryID string) (benches *Benches, err error) {
+func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
+	qID, query := h.gen.Next()
+	if query == nil {
+		return
+	}
+
+	benches, err = h.collectPlans(qID, query, round)
+
+	if err != nil {
+		return
+	}
+
+	originDur, originList, err := h.RunSQLWithTime(round, benches.SQL, benches.Type)
+	if err != nil {
+		return
+	}
+
+	benches.Cost = originDur
+
+	log.WithFields(log.Fields{
+		"query id": qID,
+		"query":    benches.SQL,
+		"cost":     fmt.Sprintf("%vms", originDur.Values),
+	}).Info("complete origin query")
+
+	rowsSet := make([][]executor.Comparable, 0)
+
+	for _, plan := range benches.Plans {
+		var rows []executor.Comparable
+		durs, rows, err := h.RunSQLWithTime(round, plan.SQL, benches.Type)
+		if err != nil {
+			return nil, err
+		}
+
+		log.WithFields(log.Fields{
+			"query id": qID,
+			"query":    plan.SQL,
+			"cost":     fmt.Sprintf("%vms", durs.Values),
+		}).Infof("complete execution plan%d", plan.Plan)
+
+		rowsSet = append(rowsSet, rows)
+		plan.Cost = durs
+	}
+
+	err = verifyQueryResult(originList, rowsSet)
+	return
+}
+
+func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Durations, []executor.Comparable, error) {
+	var (
+		costs = Durations(benchstat.Metrics{
+			Unit: "ms",
+		})
+		list []executor.Comparable
+		err  error
+	)
+
+	log.WithFields(log.Fields{
+		"query": query,
+		"round": round,
+	}).Debug("query with time")
+
+	for i := 0; i < int(round); i++ {
+		start := time.Now()
+		var rows executor.Comparable
+		switch tp {
+		case DQL:
+			rows, err = h.exec.Query(query)
+		case DML:
+			rows, err = h.exec.Exec(query)
+		default:
+			panic("Next type should be checked in `collectPlans`")
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		costs.Values = append(costs.Values, float64(time.Since(start).Microseconds()/1000))
+		list = append(list, rows)
+	}
+
+	costs.computeStats()
+	return &costs, list, err
+}
+
+func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, round uint) (benches *Benches, err error) {
 	sql, err := BufferOut(query)
 	if err != nil {
 		return
@@ -121,90 +205,6 @@ func (h *Horoscope) InitBenches(query ast.StmtNode, round uint, queryID string) 
 				SQL:         plan,
 			})
 	}
-}
-
-func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Durations, []executor.Comparable, error) {
-	var (
-		costs = Durations(benchstat.Metrics{
-			Unit: "ms",
-		})
-		list []executor.Comparable
-		err  error
-	)
-
-	log.WithFields(log.Fields{
-		"query": query,
-		"round": round,
-	}).Debug("query with time")
-
-	for i := 0; i < int(round); i++ {
-		start := time.Now()
-		var rows executor.Comparable
-		switch tp {
-		case DQL:
-			rows, err = h.exec.Query(query)
-		case DML:
-			rows, err = h.exec.Exec(query)
-		default:
-			panic("Query type should be checked in `InitBenches`")
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		costs.Values = append(costs.Values, float64(time.Since(start).Microseconds()/1000))
-		list = append(list, rows)
-	}
-
-	costs.computeStats()
-	return &costs, list, err
-}
-
-func (h *Horoscope) Step(round uint) (benches *Benches, err error) {
-	qID, query := h.gen.Query()
-	if query == nil {
-		return
-	}
-
-	benches, err = h.InitBenches(query, round, qID)
-
-	if err != nil {
-		return
-	}
-
-	originDur, originList, err := h.RunSQLWithTime(round, benches.SQL, benches.Type)
-	if err != nil {
-		return
-	}
-
-	benches.Cost = originDur
-
-	log.WithFields(log.Fields{
-		"query id": qID,
-		"query":    benches.SQL,
-		"cost":     fmt.Sprintf("%vms", originDur.Values),
-	}).Info("complete origin query")
-
-	rowsSet := make([][]executor.Comparable, 0)
-
-	for _, plan := range benches.Plans {
-		var rows []executor.Comparable
-		durs, rows, err := h.RunSQLWithTime(round, plan.SQL, benches.Type)
-		if err != nil {
-			return nil, err
-		}
-
-		log.WithFields(log.Fields{
-			"query id": qID,
-			"query":    plan.SQL,
-			"cost":     fmt.Sprintf("%vms", durs.Values),
-		}).Infof("complete execution plan%d", plan.Plan)
-
-		rowsSet = append(rowsSet, rows)
-		plan.Cost = durs
-	}
-
-	err = verifyQueryResult(originList, rowsSet)
-	return
 }
 
 func BufferOut(node ast.Node) (string, error) {
