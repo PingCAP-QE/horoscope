@@ -15,14 +15,13 @@ package generator
 
 import "github.com/pingcap/parser/ast"
 
-type (
-	Generator interface {
-		Query() (queryID string, queryStmt ast.StmtNode)
-	}
+type Generator interface {
+	Next() (queryID string, queryStmt ast.StmtNode)
+}
 
-	GeneratorFunc func() (string, ast.StmtNode)
-)
+// NoopGenerator does nothing
+type NoopGenerator struct{}
 
-func (g GeneratorFunc) Query() (string, ast.StmtNode) {
-	return g()
+func (n NoopGenerator) Next() (queryID string, queryStmt ast.StmtNode) {
+	return "", nil
 }

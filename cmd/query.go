@@ -63,8 +63,8 @@ var (
 				return err
 			}
 
-			scope := horoscope.NewHoroscope(Exec, generator.BlankGenerator)
-			dur, rows, err := scope.RunSQLWithTime(round, plan, tp)
+			horo := horoscope.NewHoroscope(Exec, generator.NoopGenerator{})
+			dur, rows, err := horo.RunSQLWithTime(round, plan, tp)
 			if err != nil {
 				return err
 			}

@@ -70,7 +70,7 @@ func (e *MySQLExecutor) Query(query string) (Rows, error) {
 }
 
 func (e *MySQLExecutor) Exec(query string) (result Result, err error) {
-	err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelReadCommitted}, func(tx *sql.Tx) error {
+	err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelDefault}, func(tx *sql.Tx) error {
 		data, err := tx.Exec(query)
 		if err != nil {
 			return err

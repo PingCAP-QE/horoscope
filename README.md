@@ -28,10 +28,10 @@ horoscope is an optimizer inspector for DBMS.
     make
     ```
 
-4. Start Test
+4. Start Benching
 
     ```bash
-    bin/horo tpch -p
+    bin/horo bench -p -w benchmark/tpch
     ```
 
 ## Usage
@@ -44,7 +44,7 @@ USAGE:
    horo [global options] command [command options] [arguments...]
 
 COMMANDS:
-   tpch        Test DSN with TPCH
+   bench       bench the optimizer
    query, q    Execute a query
    explain, e  Explain a query
    info, i     Show database information
