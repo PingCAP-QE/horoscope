@@ -15,9 +15,10 @@ package horoscope
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/jedib0t/go-pretty/table"
 	"golang.org/x/perf/benchstat"
-	"strings"
 )
 
 // Table is used for displaying in output
