@@ -104,8 +104,8 @@ func (e *MySQLExecutor) Explain(query string) (rows Rows, err error) {
 	if err != nil {
 		return
 	}
-	if rows.Columns() != Columns {
-		err = errors.New(fmt.Sprintf("Unexpected numbers of columns: expect %d, actually %d", Columns, rows.Columns()))
+	if rows.ColumnNums() != Columns {
+		err = errors.New(fmt.Sprintf("Unexpected numbers of columns: expect %d, actually %d", Columns, rows.ColumnNums()))
 	}
 	return
 }
@@ -127,7 +127,7 @@ func queryWarnings(tx *sql.Tx) (warnings []error, err error) {
 
 	warnings = make([]error, 0)
 	var warning error
-	for _, row := range rows.data {
+	for _, row := range rows.Data {
 		warning, err = Warning(row)
 		if err != nil {
 			return
@@ -148,11 +148,11 @@ func getHints(tx *sql.Tx, query string) (hints Hints, err error) {
 	if err != nil {
 		return
 	}
-	if rows.Rows() != 1 || rows.Columns() != 1 {
+	if rows.RowCount() != 1 || rows.ColumnNums() != 1 {
 		err = errors.New(fmt.Sprintf("Unexpected hint explanation: %#v", rows))
 		return
 	}
-	hints = NewHints(rows.data[0][0])
+	hints = NewHints(rows.Data[0][0])
 
 	log.WithFields(log.Fields{
 		"query": query,

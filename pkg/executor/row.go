@@ -22,8 +22,8 @@ import (
 type (
 	Row  []string
 	Rows struct {
-		columns Row
-		data    []Row
+		Columns Row
+		Data    []Row
 	}
 )
 
@@ -49,16 +49,16 @@ func NewRows(rows *sql.Rows) (ret Rows, err error) {
 		}
 		data = append(data, row)
 	}
-	ret = Rows{data: data, columns: columns}
+	ret = Rows{Data: data, Columns: columns}
 	return
 }
 
-func (r Rows) Rows() int {
-	return len(r.data)
+func (r Rows) RowCount() int {
+	return len(r.Data)
 }
 
-func (r Rows) Columns() int {
-	return len(r.columns)
+func (r Rows) ColumnNums() int {
+	return len(r.Columns)
 }
 
 func (r Row) Equal(other Row) bool {
@@ -88,17 +88,17 @@ func (r Rows) Equal(other Comparable) bool {
 		return false
 	}
 
-	if r.Rows() != otherRows.Rows() || r.Columns() != otherRows.Columns() {
+	if r.RowCount() != otherRows.RowCount() || r.ColumnNums() != otherRows.ColumnNums() {
 		return false
 	}
 
-	for i, column := range r.columns {
-		if column != otherRows.columns[i] {
+	for i, column := range r.Columns {
+		if column != otherRows.Columns[i] {
 			return false
 		}
 	}
-	for i, row := range r.data {
-		if !row.Equal(otherRows.data[i]) {
+	for i, row := range r.Data {
+		if !row.Equal(otherRows.Data[i]) {
 			return false
 		}
 	}
@@ -107,8 +107,8 @@ func (r Rows) Equal(other Comparable) bool {
 
 func (r Rows) String() string {
 	t := table.NewWriter()
-	t.AppendHeader(r.columns.ToTableRow())
-	for _, row := range r.data {
+	t.AppendHeader(r.Columns.ToTableRow())
+	for _, row := range r.Data {
 		t.AppendRow(row.ToTableRow())
 	}
 	return t.Render()
