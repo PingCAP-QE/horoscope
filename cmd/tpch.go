@@ -50,7 +50,7 @@ func tpch(*cli.Context) error {
 		}
 	}
 	gen := generator.NewTpcHGenerator()
-	scope = horoscope.NewHoroscope(exec, gen)
+	scope = horoscope.NewHoroscope(Exec, gen)
 	var collection horoscope.BenchCollection
 	for {
 		benches, err := scope.Step(round)
@@ -99,7 +99,7 @@ func tpch(*cli.Context) error {
 func tpchPrepare() error {
 	for _, table := range tables {
 		log.Infof("Analyzing table %s...", table)
-		_, err := exec.Exec(fmt.Sprintf("analyze table %s", table))
+		_, err := Exec.Exec(fmt.Sprintf("analyze table %s", table))
 		if err != nil {
 			return err
 		}
@@ -117,7 +117,7 @@ func tpchPrepare() error {
 		if err != nil {
 			return err
 		}
-		_, err = exec.Query(query)
+		_, err = Exec.Query(query)
 		if err != nil {
 			return err
 		}

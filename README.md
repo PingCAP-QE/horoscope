@@ -44,9 +44,11 @@ USAGE:
    horo [global options] command [command options] [arguments...]
 
 COMMANDS:
-   tpch      Test DSN with TPCH
-   query, q  Execute a query
-   help, h   Shows a list of commands or help for one command
+   tpch        Test DSN with TPCH
+   query, q    Execute a query
+   explain, e  Explain a query
+   info, i     Show database information
+   help, h     Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --dsn DSN, -d DSN          DSN of target db (default: "root:@tcp(localhost:4000)/test?charset=utf8")
@@ -55,6 +57,5 @@ GLOBAL OPTIONS:
    --file FILE, -f FILE       FILE to store log
    --verbose LEVEL, -v LEVEL  LEVEL of log: trace|debug|info|warn|error|fatal|panic (default: "info")
    --help, -h                 show help (default: false)
-
 ```
 
