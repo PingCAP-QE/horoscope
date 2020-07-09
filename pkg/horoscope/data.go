@@ -26,14 +26,10 @@ import (
 
 type Benches struct {
 	QueryID     string
-	SQL         string
 	Query       ast.StmtNode
 	Type        QueryType
 	Round       uint
-	Hints       executor.Hints
-	Cost        *Durations
-	DefaultPlan int64
-	Explanation executor.Rows
+	DefaultPlan Bench
 	Plans       []*Bench
 }
 
@@ -42,22 +38,25 @@ type Bench struct {
 	SQL         string
 	Hints       executor.Hints
 	Explanation executor.Rows
-	Cost        *Durations
+	Cost        *Metrics
+	// use q-error to calc the cardinality error
+	BaseTableCardInfo []*executor.CardinalityInfo
+	JoinTableCardInfo []*executor.CardinalityInfo
 }
 
-type Durations benchstat.Metrics
+type Metrics benchstat.Metrics
 
-func (d *Durations) format() string {
+func (d *Metrics) format() string {
 	mean, diff := d.formatMean(), d.formatDiff()
 	return fmt.Sprintf("%s ±%3s", mean, diff)
 }
 
-func (d *Durations) formatMean() string {
+func (d *Metrics) formatMean() string {
 	mean := d.Mean
 	return fmt.Sprintf("%.1fms", mean)
 }
 
-func (d *Durations) formatDiff() string {
+func (d *Metrics) formatDiff() string {
 	if d.Mean == 0 || d.Max == 0 {
 		return ""
 	}
@@ -68,7 +67,7 @@ func (d *Durations) formatDiff() string {
 
 // computeStats updates the derived statistics in d from the raw
 // samples in d.Values.
-func (d *Durations) computeStats() {
+func (d *Metrics) computeStats() {
 	var value []float64
 	var rValue []float64
 	for _, v := range d.Values {

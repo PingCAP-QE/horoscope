@@ -30,7 +30,7 @@ type (
 		Exec(query string) (Result, error)
 		GetHints(query string) (Hints, []error, error)
 		Explain(query string) (Rows, error)
-		ExplainAnalyze(query string) (Rows, error)
+		ExplainAnalyze(query string) (*ExplainAnalyzeInfo, error)
 	}
 
 	MySQLExecutor struct {
@@ -107,12 +107,12 @@ func (e *MySQLExecutor) Explain(query string) (rows Rows, err error) {
 	return
 }
 
-func (e *MySQLExecutor) ExplainAnalyze(query string) (rows Rows, err error) {
-	rows, err = e.Query(fmt.Sprintf("EXPLAIN ANALYZE %s", query))
+func (e *MySQLExecutor) ExplainAnalyze(query string) (ei *ExplainAnalyzeInfo, err error) {
+	rows, err := e.Query(fmt.Sprintf("EXPLAIN ANALYZE %s", query))
 	if err != nil {
-		return Rows{}, fmt.Errorf("explain analyze error: %v", err)
+		return nil, fmt.Errorf("explain analyze error: %v", err)
 	}
-	return
+	return NewExplainAnalyzeInfo(rows), nil
 }
 
 func NewExecutor(dsn string) (Executor, error) {

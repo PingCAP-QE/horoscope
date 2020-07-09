@@ -51,7 +51,7 @@ func (c *BenchCollection) Table() Table {
 	alpha := 0.05
 	table := Table{Metric: "execution time", Headers: []string{"id", "#plan space", "default execution time", "best plan execution time", "effectiveness", "better optimal plans", "query"}}
 	for _, b := range *c {
-		defaultPlanDurs, bestPlanDurs, betterPlanCount, optimalPlan := b.Cost, b.Cost, 0, make([]string, 0)
+		defaultPlanDurs, bestPlanDurs, betterPlanCount, optimalPlan := b.DefaultPlan.Cost, b.DefaultPlan.Cost, 0, make([]string, 0)
 
 		for _, p := range b.Plans {
 			if p.Cost.Mean < defaultPlanDurs.Mean {
@@ -83,9 +83,9 @@ func (c *BenchCollection) Table() Table {
 		planSpaceCount := len(b.Plans)
 		row := Row{
 			QueryId:        b.QueryID,
-			Query:          b.SQL,
+			Query:          b.DefaultPlan.SQL,
 			PlanSpaceCount: len(b.Plans),
-			DefaultPlanDur: b.Cost.format(),
+			DefaultPlanDur: b.DefaultPlan.Cost.format(),
 			BestPlanDur:    bestPlanDurs.format(),
 			OptimalPlan:    optimalPlan,
 			Effectiveness:  float64(planSpaceCount-betterPlanCount) / float64(planSpaceCount),

@@ -64,7 +64,7 @@ var (
 			}
 
 			horo := horoscope.NewHoroscope(Exec, generator.NoopGenerator{})
-			dur, rows, err := horo.RunSQLWithAnalysis(round, plan, tp)
+			dur, rows, err := horo.RunSQLWithTime(round, plan, tp)
 			if err != nil {
 				return err
 			}
