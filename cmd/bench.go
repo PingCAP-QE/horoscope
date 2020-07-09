@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/pingcap/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
@@ -119,13 +118,14 @@ func prepare(workloadDir string) error {
 		"workload dir": workloadDir,
 	}).Info("preparing...")
 
-	sqls, err := ioutil.ReadFile(fmt.Sprintf("%s/prepare.sql", workloadDir))
+	file := fmt.Sprintf("%s/prepare.sql", workloadDir)
+	sqls, err := ioutil.ReadFile(file)
 	if err != nil {
-		return errors.Trace(err)
+		return fmt.Errorf("read file %s error: %v", file, err)
 	}
 	_, err = Exec.Exec(string(sqls))
 	if err != nil {
-		return errors.Trace(err)
+		return fmt.Errorf("exec prepare statements error: %v", err)
 	}
 	log.WithFields(log.Fields{
 		"workload dir": workloadDir,

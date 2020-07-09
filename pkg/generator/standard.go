@@ -15,7 +15,6 @@ package generator
 
 import (
 	"fmt"
-	"github.com/pingcap/errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -74,7 +73,8 @@ func (g *StandardGenerator) Next() (string, ast.StmtNode) {
 }
 
 func (g *StandardGenerator) init() error {
-	err := filepath.Walk(fmt.Sprintf("%s/queries", g.workloadDir),
+	dir := fmt.Sprintf("%s/queries", g.workloadDir)
+	err := filepath.Walk(dir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -82,7 +82,7 @@ func (g *StandardGenerator) init() error {
 			if !info.IsDir() {
 				sql, err := ioutil.ReadFile(path)
 				if err != nil {
-					return errors.Trace(err)
+					return fmt.Errorf("read file %s error: %v", path, err)
 				}
 				g.queries = append(g.queries, queryInfo{
 					name: info.Name(),
@@ -92,7 +92,7 @@ func (g *StandardGenerator) init() error {
 			return nil
 		})
 	if err != nil {
-		return errors.Trace(err)
+		return fmt.Errorf("walk dir %s error: %v", dir, err)
 	}
 	return nil
 }

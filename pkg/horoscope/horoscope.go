@@ -67,7 +67,7 @@ func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
 	}).Info("complete plan collection")
 
 	benches.Round = round
-	originDur, originList, err := h.RunSQLWithTime(benches.Round, benches.SQL, benches.Type)
+	originDur, originList, err := h.RunSQLWithAnalysis(benches.Round, benches.SQL, benches.Type)
 	if err != nil {
 		return
 	}
@@ -83,7 +83,7 @@ func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
 
 	for _, plan := range benches.Plans {
 		var rows []executor.Comparable
-		durs, rows, err := h.RunSQLWithTime(round, plan.SQL, benches.Type)
+		durs, rows, err := h.RunSQLWithAnalysis(round, plan.SQL, benches.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +101,7 @@ func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
 	return
 }
 
-func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Durations, []executor.Comparable, error) {
+func (h *Horoscope) RunSQLWithAnalysis(round uint, query string, tp QueryType) (*Durations, []executor.Comparable, error) {
 	var (
 		costs = Durations(benchstat.Metrics{
 			Unit: "ms",
