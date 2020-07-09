@@ -63,9 +63,19 @@ func bench(*cli.Context) error {
 	for {
 		benches, err := horo.Next(round)
 		if err != nil {
-			return err
+			if benches != nil {
+				log.WithFields(log.Fields{
+					"query id": benches.QueryID,
+					"query":    benches.SQL,
+					"err":      err.Error(),
+				}).Warn("Occurs an error when benching the query")
+			} else {
+				log.WithFields(log.Fields{
+					"err": err.Error(),
+				}).Warn("Occurs an error when benching one query")
+			}
+			continue
 		}
-
 		if benches == nil {
 			break
 		}

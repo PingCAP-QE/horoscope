@@ -56,7 +56,7 @@ func (g *StandardGenerator) Next() (string, ast.StmtNode) {
 			log.WithFields(log.Fields{
 				"query": query,
 				"err":   err.Error(),
-			}).Fatal("Fails to parse query")
+			}).Warn("Fails to parse, ignore this query")
 		}
 
 		if len(warns) > 0 {
@@ -64,7 +64,7 @@ func (g *StandardGenerator) Next() (string, ast.StmtNode) {
 				log.WithFields(log.Fields{
 					"query":   query,
 					"warning": warn.Error(),
-				}).Warn("Warns in parsing query")
+				}).Warn("Warns in parse, ignore this query")
 			}
 		}
 
