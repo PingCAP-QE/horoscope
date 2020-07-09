@@ -56,19 +56,23 @@ func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
 		return
 	}
 
-	benches, err = h.collectPlans(qID, query, round)
-
+	benches, err = h.collectPlans(qID, query)
 	if err != nil {
 		return
 	}
+	log.WithFields(log.Fields{
+		"query id":        qID,
+		"query":           benches.SQL,
+		"plan space size": len(benches.Plans),
+	}).Info("complete plan collection")
 
-	originDur, originList, err := h.RunSQLWithTime(round, benches.SQL, benches.Type)
+	benches.Round = round
+	originDur, originList, err := h.RunSQLWithTime(benches.Round, benches.SQL, benches.Type)
 	if err != nil {
 		return
 	}
 
 	benches.Cost = originDur
-
 	log.WithFields(log.Fields{
 		"query id": qID,
 		"query":    benches.SQL,
@@ -93,7 +97,6 @@ func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
 		rowsSet = append(rowsSet, rows)
 		plan.Cost = durs
 	}
-
 	err = verifyQueryResult(originList, rowsSet)
 	return
 }
@@ -134,7 +137,7 @@ func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Dur
 	return &costs, list, err
 }
 
-func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, round uint) (benches *Benches, err error) {
+func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *Benches, err error) {
 	sql, err := BufferOut(query)
 	if err != nil {
 		return
@@ -152,7 +155,6 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, round uint)
 
 	benches = &Benches{
 		QueryID:     queryID,
-		Round:       round,
 		SQL:         sql,
 		Query:       query,
 		Hints:       hints,
