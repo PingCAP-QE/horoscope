@@ -127,9 +127,12 @@ func apply(path string) error {
 	}
 	sql := string(data)
 	for _, query := range strings.Split(sql, "\n") {
-		_, err = Exec.Exec(query)
-		if err != nil {
-			return err
+		if query != "" {
+			log.WithField("query", query).Info("Executing...")
+			_, err = Exec.Exec(query)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
