@@ -122,7 +122,7 @@ func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Dur
 		case DQL:
 			rows, err = h.exec.Query(query)
 		case DML:
-			rows, err = h.exec.Exec(query)
+			rows, err = h.exec.ExecAndRollback(query)
 		default:
 			panic("Next type should be checked in `collectPlans`")
 		}

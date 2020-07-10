@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -125,8 +126,13 @@ func apply(path string) error {
 		return err
 	}
 	sql := string(data)
-	_, err = Exec.Exec(sql)
-	return err
+	for _, query := range strings.Split(sql, "\n") {
+		_, err = Exec.Exec(query)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func fileExist(path string) bool {

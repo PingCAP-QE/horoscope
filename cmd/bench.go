@@ -123,7 +123,7 @@ func prepare(workloadDir string) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	_, err = Exec.Exec(string(sqls))
+	_, err = Exec.ExecAndRollback(string(sqls))
 	if err != nil {
 		return errors.Trace(err)
 	}
