@@ -22,8 +22,8 @@ import (
 
 // Database defines database database
 type Database struct {
-	Name   string
-	Tables map[string]*Table
+	Name       string
+	BaseTables map[string]*Table
 }
 
 func LoadDatabase(rawName, tables executor.Rows) (db *Database, err error) {
@@ -31,16 +31,16 @@ func LoadDatabase(rawName, tables executor.Rows) (db *Database, err error) {
 		err = errors.New(fmt.Sprintf("Invalid database\n%s", rawName.String()))
 		return
 	}
-	if tables.ColumnNums() != 1 {
+	if tables.ColumnNums() != 2 {
 		err = errors.New(fmt.Sprintf("Invalid tables\n%s", tables.String()))
 		return
 	}
 	db = &Database{
-		Name:   rawName.Data[0][0],
-		Tables: make(map[string]*Table),
+		Name:       rawName.Data[0][0],
+		BaseTables: make(map[string]*Table),
 	}
 	for _, row := range tables.Data {
-		db.Tables[row[0]] = PrepareTable(row[0])
+		db.BaseTables[row[0]] = PrepareTable(row[0])
 	}
 	return
 }

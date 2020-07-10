@@ -69,7 +69,7 @@ func newScheme(*cli.Context) error {
 	}
 	add := ""
 	clean := ""
-	for _, table := range Database.Tables {
+	for _, table := range Database.BaseTables {
 		for _, column := range table.Columns {
 			if column.Key == "" {
 				add += fmt.Sprintf("ALTER TABLE `%s` ADD INDEX (`%s`);\n", table.Name, column.Name)

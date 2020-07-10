@@ -131,7 +131,7 @@ func InitDatabase(exec executor.Executor) (database *types.Database, err error) 
 	if err != nil {
 		return
 	}
-	tables, err := exec.Query("SHOW TABLES")
+	tables, err := exec.Query("SHOW FULL TABLES WHERE TABLE_TYPE='BASE TABLE'")
 	if err != nil {
 		return
 	}
@@ -139,7 +139,7 @@ func InitDatabase(exec executor.Executor) (database *types.Database, err error) 
 	if err != nil {
 		return
 	}
-	for name, table := range database.Tables {
+	for name, table := range database.BaseTables {
 		var columns executor.Rows
 		columns, err = exec.Query(fmt.Sprintf("DESC %s", name))
 		if err != nil {
