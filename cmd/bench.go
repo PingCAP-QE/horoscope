@@ -45,7 +45,7 @@ var (
 				Name:        "workload",
 				Aliases:     []string{"w"},
 				Usage:       "specify the workload `DIR`",
-				Required:    true,
+				Value:       "benchmark/dyn",
 				Destination: &workloadDir,
 			},
 		},
