@@ -31,7 +31,7 @@ var (
 	workloadDir            string
 	benchCommand           = &cli.Command{
 		Name:   "bench",
-		Usage:  "bench the optimizer",
+		Usage:  "Bench the optimizer",
 		Action: bench,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -50,8 +50,8 @@ var (
 			&cli.StringFlag{
 				Name:        "workload",
 				Aliases:     []string{"w"},
-				Usage:       "specify the workload dir",
-				Required:    true,
+				Usage:       "specify the workload `DIR`",
+				Value:       "benchmark/dyn",
 				Destination: &workloadDir,
 			},
 		},

@@ -4,3 +4,7 @@ bin
 # ide files
 .idea
 .vscode
+
+# dynamic benchmark
+benchmark/dyn/*
+!**/**/.gitkeep

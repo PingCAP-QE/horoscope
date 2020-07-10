@@ -28,16 +28,16 @@ var (
 	}
 
 	tables = executor.Rows{
-		Columns: executor.Row{"Tables_in_test"},
+		Columns: executor.Row{"tables_in_test", "table_type"},
 		Data: []executor.Row{
-			{"customer"},
-			{"lineitem"},
-			{"nation"},
-			{"orders"},
-			{"part"},
-			{"partsupp"},
-			{"region"},
-			{"supplier"},
+			{"customer", "BASE TABLE"},
+			{"lineitem", "BASE TABLE"},
+			{"nation", "BASE TABLE"},
+			{"orders", "BASE TABLE"},
+			{"part", "BASE TABLE"},
+			{"partsupp", "BASE TABLE"},
+			{"region", "BASE TABLE"},
+			{"supplier", "BASE TABLE"},
 		},
 	}
 	lineitem = executor.Rows{
@@ -56,13 +56,13 @@ var (
 func TestLoadDatabase(t *testing.T) {
 	db, err := LoadDatabase(database, tables)
 	assert.Nil(t, err)
-	err = db.Tables["lineitem"].LoadColumns(lineitem)
+	err = db.BaseTables["lineitem"].LoadColumns(lineitem)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "test", db.Name)
-	assert.Equal(t, 8, len(db.Tables))
+	assert.Equal(t, 8, len(db.BaseTables))
 
-	lineitem := db.Tables["lineitem"]
+	lineitem := db.BaseTables["lineitem"]
 
 	assert.Equal(t, "lineitem", lineitem.Name.String())
 	assert.Equal(t, 6, len(lineitem.Columns))

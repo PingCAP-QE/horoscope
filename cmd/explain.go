@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
@@ -31,7 +32,7 @@ var explainCommand = &cli.Command{
 		&cli.Int64Flag{
 			Name:        "plan",
 			Aliases:     []string{"p"},
-			Usage:       "Use plan by `ID`",
+			Usage:       "use plan by `ID`",
 			Destination: &planID,
 		},
 	},
@@ -58,9 +59,14 @@ var explainCommand = &cli.Command{
 			return err
 		}
 
-		rows, err := Exec.Explain(plan)
+		rows, warnings, err := Exec.Explain(plan)
 		if err != nil {
 			return err
+		}
+		for _, warning := range warnings {
+			if warning != nil {
+				log.Warn(warning.Error())
+			}
 		}
 		fmt.Println(rows.String())
 		return nil

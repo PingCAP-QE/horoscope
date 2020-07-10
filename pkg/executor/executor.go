@@ -28,8 +28,9 @@ type (
 	Executor  interface {
 		Query(query string) (Rows, error)
 		Exec(query string) (Result, error)
-		GetHints(query string) (Hints, []error, error)
-		Explain(query string) (Rows, error)
+		GetHints(query string) (Hints, error)
+		Explain(query string) (Rows, []error, error)
+		ExecAndRollback(query string) (Result, error)
 		ExplainAnalyze(query string) (*ExplainAnalyzeInfo, error)
 	}
 
@@ -38,7 +39,12 @@ type (
 	}
 )
 
-func (e *MySQLExecutor) EnterTx(options *sql.TxOptions, task func(tx *sql.Tx) error) (err error) {
+func NewExecutor(dsn string) (Executor, error) {
+	db, err := sql.Open("mysql", dsn)
+	return &MySQLExecutor{db: db}, err
+}
+
+func (e *MySQLExecutor) RunAndRollback(options *sql.TxOptions, task func(tx *sql.Tx) error) (err error) {
 	tx, err := e.db.BeginTx(context.Background(), options)
 	if err != nil {
 		return err
@@ -53,25 +59,17 @@ func (e *MySQLExecutor) EnterTx(options *sql.TxOptions, task func(tx *sql.Tx) er
 	return
 }
 
-func (e *MySQLExecutor) Query(query string) (Rows, error) {
-	var row Rows
-	err := e.EnterTx(nil, func(tx *sql.Tx) error {
-		data, err := tx.Query(query)
-		if err != nil {
-			return err
-		}
-
-		row, err = NewRows(data)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	return row, err
+func (e *MySQLExecutor) Query(query string) (rows Rows, err error) {
+	data, err := e.db.Query(query)
+	if err != nil {
+		return
+	}
+	rows, err = NewRows(data)
+	return
 }
 
-func (e *MySQLExecutor) Exec(query string) (result Result, err error) {
-	err = e.EnterTx(&sql.TxOptions{Isolation: sql.LevelDefault}, func(tx *sql.Tx) error {
+func (e *MySQLExecutor) ExecAndRollback(query string) (result Result, err error) {
+	err = e.RunAndRollback(&sql.TxOptions{Isolation: sql.LevelDefault}, func(tx *sql.Tx) error {
 		data, err := tx.Exec(query)
 		if err != nil {
 			return err
@@ -85,25 +83,31 @@ func (e *MySQLExecutor) Exec(query string) (result Result, err error) {
 	return
 }
 
-/// GetHints would query plan out of range warnings
-func (e *MySQLExecutor) GetHints(query string) (hints Hints, warnings []error, err error) {
-	_ = e.EnterTx(nil, func(tx *sql.Tx) (_ error) {
-		hints, err = getHints(tx, query)
-		if err != nil {
-			return
-		}
-		// TODO: check warning in "Explain"
-		warnings, err = queryWarnings(tx)
+func (e *MySQLExecutor) Exec(query string) (result Result, err error) {
+	data, err := e.db.Exec(query)
+	if err != nil {
 		return
-	})
+	}
+	result, err = NewResult(data)
 	return
 }
 
-func (e *MySQLExecutor) Explain(query string) (rows Rows, err error) {
+/// GetHints would query plan out of range warnings
+func (e *MySQLExecutor) GetHints(query string) (hints Hints, err error) {
+	hints, err = e.getHints(query)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (e *MySQLExecutor) Explain(query string) (rows Rows, warnings []error, err error) {
 	rows, err = e.Query(fmt.Sprintf("EXPLAIN %s", query))
 	if err != nil {
-		return Rows{}, fmt.Errorf("explain error: %v", err)
+		err = fmt.Errorf("explain error: %v", err)
+		return
 	}
+	warnings, err = e.queryWarnings()
 	return
 }
 
@@ -115,13 +119,8 @@ func (e *MySQLExecutor) ExplainAnalyze(query string) (ei *ExplainAnalyzeInfo, er
 	return NewExplainAnalyzeInfo(rows), nil
 }
 
-func NewExecutor(dsn string) (Executor, error) {
-	db, err := sql.Open("mysql", dsn)
-	return &MySQLExecutor{db: db}, err
-}
-
-func queryWarnings(tx *sql.Tx) (warnings []error, err error) {
-	data, err := tx.Query("SHOW WARNINGS;")
+func (e *MySQLExecutor) queryWarnings() (warnings []error, err error) {
+	data, err := e.db.Query("SHOW WARNINGS;")
 	if err != nil {
 		return
 	}
@@ -143,9 +142,9 @@ func queryWarnings(tx *sql.Tx) (warnings []error, err error) {
 	return
 }
 
-func getHints(tx *sql.Tx, query string) (hints Hints, err error) {
+func (e *MySQLExecutor) getHints(query string) (hints Hints, err error) {
 	explanation := fmt.Sprintf("explain format = 'hint' %s", query)
-	rawRows, err := tx.Query(explanation)
+	rawRows, err := e.db.Query(explanation)
 	if err != nil {
 		return
 	}
@@ -154,7 +153,7 @@ func getHints(tx *sql.Tx, query string) (hints Hints, err error) {
 		return
 	}
 	if rows.RowCount() != 1 || rows.ColumnNums() != 1 {
-		err = errors.New(fmt.Sprintf("Unexpected hint explanation: %#v", rows))
+		err = errors.New(fmt.Sprintf("Unexpected hints: %#v", rows))
 		return
 	}
 	hints = NewHints(rows.Data[0][0])

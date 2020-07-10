@@ -46,34 +46,34 @@ func main() {
 				Name:        "dsn",
 				Aliases:     []string{"d"},
 				Value:       "root:@tcp(localhost:4000)/test?charset=utf8",
-				Usage:       "`DSN` of target db",
+				Usage:       "set `DSN` of target db",
 				Destination: &dsn,
 			},
 			&cli.UintFlag{
 				Name:        "round",
 				Aliases:     []string{"r"},
 				Value:       1,
-				Usage:       "Execution `ROUND` of each query",
+				Usage:       "execution `ROUND` of each query",
 				Destination: &round,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Aliases:     []string{"j"},
 				Value:       false,
-				Usage:       "Format log with json formatter",
+				Usage:       "format log with json formatter",
 				Destination: &jsonFormatter,
 			},
 			&cli.StringFlag{
 				Name:        "file",
 				Aliases:     []string{"f"},
-				Usage:       "`FILE` to store log",
+				Usage:       "set `FILE` to store log",
 				Destination: &logFile,
 			},
 			&cli.StringFlag{
 				Name:        "verbose",
 				Aliases:     []string{"v"},
 				Value:       "info",
-				Usage:       "`LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
+				Usage:       "set `LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
 				Destination: &verbose,
 			},
 		},
@@ -94,6 +94,7 @@ func main() {
 			queryCommand,
 			explainCommand,
 			infoCommand,
+			indexCommand,
 		},
 	}
 
@@ -130,7 +131,7 @@ func InitDatabase(exec executor.Executor) (database *types.Database, err error) 
 	if err != nil {
 		return
 	}
-	tables, err := exec.Query("SHOW TABLES")
+	tables, err := exec.Query("SHOW FULL TABLES WHERE TABLE_TYPE='BASE TABLE'")
 	if err != nil {
 		return
 	}
@@ -138,7 +139,7 @@ func InitDatabase(exec executor.Executor) (database *types.Database, err error) 
 	if err != nil {
 		return
 	}
-	for name, table := range database.Tables {
+	for name, table := range database.BaseTables {
 		var columns executor.Rows
 		columns, err = exec.Query(fmt.Sprintf("DESC %s", name))
 		if err != nil {

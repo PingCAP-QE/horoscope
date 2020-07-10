@@ -31,7 +31,7 @@ var (
 			&cli.StringFlag{
 				Name:        "table",
 				Aliases:     []string{"t"},
-				Usage:       "Show single `TABLE`",
+				Usage:       "show single `TABLE`",
 				Destination: &tableName,
 			},
 		},
@@ -52,15 +52,15 @@ var (
 
 func showTables() string {
 	t := table.NewWriter()
-	t.AppendHeader(table.Row{"Tables"})
-	for name := range Database.Tables {
+	t.AppendHeader(table.Row{"Base Tables"})
+	for name := range Database.BaseTables {
 		t.AppendRow(table.Row{name})
 	}
 	return t.Render()
 }
 
 func showTable(tableName string) (repr string, err error) {
-	tb, ok := Database.Tables[tableName]
+	tb, ok := Database.BaseTables[tableName]
 	if !ok {
 		err = errors.New(fmt.Sprintf("Table %s not found", tableName))
 		return
