@@ -31,7 +31,7 @@ var (
 			&cli.StringFlag{
 				Name:        "table",
 				Aliases:     []string{"t"},
-				Usage:       "Show single `TABLE`",
+				Usage:       "show single `TABLE`",
 				Destination: &tableName,
 			},
 		},

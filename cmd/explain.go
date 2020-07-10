@@ -31,7 +31,7 @@ var explainCommand = &cli.Command{
 		&cli.Int64Flag{
 			Name:        "plan",
 			Aliases:     []string{"p"},
-			Usage:       "Use plan by `ID`",
+			Usage:       "use plan by `ID`",
 			Destination: &planID,
 		},
 	},
