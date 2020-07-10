@@ -31,6 +31,7 @@ type (
 		GetHints(query string) (Hints, error)
 		Explain(query string) (Rows, []error, error)
 		ExecAndRollback(query string) (Result, error)
+		ExplainAnalyze(query string) (*ExplainAnalyzeInfo, error)
 	}
 
 	MySQLExecutor struct {
@@ -101,16 +102,21 @@ func (e *MySQLExecutor) GetHints(query string) (hints Hints, err error) {
 }
 
 func (e *MySQLExecutor) Explain(query string) (rows Rows, warnings []error, err error) {
-	const Columns = 5
 	rows, err = e.Query(fmt.Sprintf("EXPLAIN %s", query))
 	if err != nil {
+		err = fmt.Errorf("explain error: %v", err)
 		return
-	}
-	if rows.ColumnNums() != Columns {
-		err = errors.New(fmt.Sprintf("Unexpected numbers of columns: expect %d, actually %d", Columns, rows.ColumnNums()))
 	}
 	warnings, err = e.queryWarnings()
 	return
+}
+
+func (e *MySQLExecutor) ExplainAnalyze(query string) (ei *ExplainAnalyzeInfo, err error) {
+	rows, err := e.Query(fmt.Sprintf("EXPLAIN ANALYZE %s", query))
+	if err != nil {
+		return nil, fmt.Errorf("explain analyze error: %v", err)
+	}
+	return NewExplainAnalyzeInfo(rows), nil
 }
 
 func (e *MySQLExecutor) queryWarnings() (warnings []error, err error) {
