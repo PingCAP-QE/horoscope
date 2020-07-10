@@ -143,12 +143,12 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 		return
 	}
 
-	hints, _, err := h.exec.GetHints(sql)
+	hints, err := h.exec.GetHints(sql)
 	if err != nil {
 		return
 	}
 
-	explanation, err := h.exec.Explain(sql)
+	explanation, _, err := h.exec.Explain(sql)
 	if err != nil {
 		return
 	}
@@ -178,8 +178,7 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 			return
 		}
 
-		hints, warnings, err = h.exec.GetHints(plan)
-
+		explanation, warnings, err = h.exec.Explain(plan)
 		if err != nil {
 			return
 		}
@@ -190,7 +189,7 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 			}
 		}
 
-		explanation, err = h.exec.Explain(plan)
+		hints, err = h.exec.GetHints(plan)
 		if err != nil {
 			return
 		}

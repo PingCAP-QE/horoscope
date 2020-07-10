@@ -28,8 +28,8 @@ type (
 	Executor  interface {
 		Query(query string) (Rows, error)
 		Exec(query string) (Result, error)
-		GetHints(query string) (Hints, []error, error)
-		Explain(query string) (Rows, error)
+		GetHints(query string) (Hints, error)
+		Explain(query string) (Rows, []error, error)
 		ExecAndRollback(query string) (Result, error)
 	}
 
@@ -92,17 +92,15 @@ func (e *MySQLExecutor) Exec(query string) (result Result, err error) {
 }
 
 /// GetHints would query plan out of range warnings
-func (e *MySQLExecutor) GetHints(query string) (hints Hints, warnings []error, err error) {
+func (e *MySQLExecutor) GetHints(query string) (hints Hints, err error) {
 	hints, err = e.getHints(query)
 	if err != nil {
 		return
 	}
-	// TODO: check warning in "Explain"
-	warnings, err = e.queryWarnings()
 	return
 }
 
-func (e *MySQLExecutor) Explain(query string) (rows Rows, err error) {
+func (e *MySQLExecutor) Explain(query string) (rows Rows, warnings []error, err error) {
 	const Columns = 5
 	rows, err = e.Query(fmt.Sprintf("EXPLAIN %s", query))
 	if err != nil {
@@ -111,6 +109,7 @@ func (e *MySQLExecutor) Explain(query string) (rows Rows, err error) {
 	if rows.ColumnNums() != Columns {
 		err = errors.New(fmt.Sprintf("Unexpected numbers of columns: expect %d, actually %d", Columns, rows.ColumnNums()))
 	}
+	warnings, err = e.queryWarnings()
 	return
 }
 
