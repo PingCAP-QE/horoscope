@@ -7,4 +7,4 @@ bin
 
 # dynamic benchmark
 benchmark/dyn/*
-!.gitkeep
+!**/**/.gitkeep
