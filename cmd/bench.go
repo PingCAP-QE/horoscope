@@ -130,7 +130,7 @@ func prepare(workloadDir string) error {
 	if err != nil {
 		return fmt.Errorf("read file %s error: %v", file, err)
 	}
-	_, err = Exec.ExecAndRollback(string(sqls))
+	_, err = Exec.Exec(string(sqls))
 	if err != nil {
 		return fmt.Errorf("exec prepare statements error: %v", err)
 	}
