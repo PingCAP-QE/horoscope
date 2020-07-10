@@ -1,11 +1,12 @@
 package executor
 
 import (
-	"github.com/chaos-mesh/horoscope/pkg"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/chaos-mesh/horoscope/pkg"
 )
 
 var operatorRegex = regexp.MustCompile(`[a-zA-Z]+`)
