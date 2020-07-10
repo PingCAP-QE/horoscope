@@ -94,6 +94,7 @@ func main() {
 			queryCommand,
 			explainCommand,
 			infoCommand,
+			indexCommand,
 		},
 	}
 
