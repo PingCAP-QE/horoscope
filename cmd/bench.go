@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/pingcap/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
@@ -26,10 +25,11 @@ import (
 )
 
 var (
-	horo         *horoscope.Horoscope
-	needPrepare  bool
-	workloadDir  string
-	benchCommand = &cli.Command{
+	horo                   *horoscope.Horoscope
+	needPrepare            bool
+	enableCollectCardError bool
+	workloadDir            string
+	benchCommand           = &cli.Command{
 		Name:   "bench",
 		Usage:  "bench the optimizer",
 		Action: bench,
@@ -40,6 +40,12 @@ var (
 				Usage:       "prepare before benching",
 				Value:       false,
 				Destination: &needPrepare,
+			},
+			&cli.BoolFlag{
+				Name:        "c",
+				Usage:       "collect cardinality estimation error",
+				Value:       true,
+				Destination: &enableCollectCardError,
 			},
 			&cli.StringFlag{
 				Name:        "workload",
@@ -58,7 +64,7 @@ func bench(*cli.Context) error {
 			return err
 		}
 	}
-	horo = horoscope.NewHoroscope(Exec, generator.NewStandardGenerator(workloadDir))
+	horo = horoscope.NewHoroscope(Exec, generator.NewStandardGenerator(workloadDir), enableCollectCardError)
 	var collection horoscope.BenchCollection
 	for {
 		benches, err := horo.Next(round)
@@ -66,7 +72,7 @@ func bench(*cli.Context) error {
 			if benches != nil {
 				log.WithFields(log.Fields{
 					"query id": benches.QueryID,
-					"query":    benches.SQL,
+					"query":    benches.DefaultPlan.SQL,
 					"err":      err.Error(),
 				}).Warn("Occurs an error when benching the query")
 			} else {
@@ -81,19 +87,19 @@ func bench(*cli.Context) error {
 		}
 		log.WithFields(log.Fields{
 			"query id":      benches.QueryID,
-			"query":         benches.SQL,
-			"default plan":  benches.DefaultPlan,
-			"default hints": benches.Hints,
-			"cost":          fmt.Sprintf("%v", benches.Cost.Values),
+			"query":         benches.DefaultPlan.SQL,
+			"default plan":  benches.DefaultPlan.Plan,
+			"default hints": benches.DefaultPlan.Hints,
+			"cost":          fmt.Sprintf("%v", benches.DefaultPlan.Cost.Values),
 			"plan size":     len(benches.Plans),
 		}).Info("Complete a step")
 		log.WithFields(log.Fields{
 			"query id":    benches.QueryID,
-			"explanation": benches.Explanation.String(),
+			"explanation": benches.DefaultPlan.Explanation.String(),
 		}).Debug("Default explanation")
 		collection = append(collection, benches)
 		for _, plan := range benches.Plans {
-			if plan.Cost.Mean < benches.Cost.Mean && plan.Plan != benches.DefaultPlan {
+			if horoscope.IsSubOptimal(&benches.DefaultPlan, plan) && plan.Plan != benches.DefaultPlan.Plan {
 				log.WithFields(log.Fields{
 					"query id":     benches.QueryID,
 					"better plan":  plan.Plan,
@@ -101,7 +107,7 @@ func bench(*cli.Context) error {
 				}).Errorf(
 					"may choose a suboptimal plan(%0.2fms < %0.2fms)",
 					plan.Cost.Mean,
-					benches.Cost.Mean,
+					benches.DefaultPlan.Cost.Mean,
 				)
 				log.WithFields(log.Fields{
 					"query id":           benches.QueryID,
@@ -119,13 +125,14 @@ func prepare(workloadDir string) error {
 		"workload dir": workloadDir,
 	}).Info("preparing...")
 
-	sqls, err := ioutil.ReadFile(fmt.Sprintf("%s/prepare.sql", workloadDir))
+	file := fmt.Sprintf("%s/prepare.sql", workloadDir)
+	sqls, err := ioutil.ReadFile(file)
 	if err != nil {
-		return errors.Trace(err)
+		return fmt.Errorf("read file %s error: %v", file, err)
 	}
 	_, err = Exec.Exec(string(sqls))
 	if err != nil {
-		return errors.Trace(err)
+		return fmt.Errorf("exec prepare statements error: %v", err)
 	}
 	log.WithFields(log.Fields{
 		"workload dir": workloadDir,

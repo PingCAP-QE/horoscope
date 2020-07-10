@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pingcap/parser/ast"
@@ -40,14 +41,15 @@ var (
 
 type (
 	Horoscope struct {
-		exec executor.Executor
-		gen  generator.Generator
+		exec                   executor.Executor
+		gen                    generator.Generator
+		enableCollectCardError bool
 	}
 	QueryType uint8
 )
 
-func NewHoroscope(exec executor.Executor, gen generator.Generator) *Horoscope {
-	return &Horoscope{exec: exec, gen: gen}
+func NewHoroscope(exec executor.Executor, gen generator.Generator, enableCollectCardError bool) *Horoscope {
+	return &Horoscope{exec: exec, gen: gen, enableCollectCardError: enableCollectCardError}
 }
 
 func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
@@ -62,48 +64,75 @@ func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
 	}
 	log.WithFields(log.Fields{
 		"query id":        qID,
-		"query":           benches.SQL,
+		"query":           benches.DefaultPlan.SQL,
 		"plan space size": len(benches.Plans),
 	}).Info("complete plan collection")
 
 	benches.Round = round
-	originDur, originList, err := h.RunSQLWithTime(benches.Round, benches.SQL, benches.Type)
+	cost, originList, err := h.RunSQLWithTime(benches.Round, benches.DefaultPlan.SQL, benches.Type)
 	if err != nil {
 		return
 	}
-
-	benches.Cost = originDur
+	benches.DefaultPlan.Cost = cost
+	if h.enableCollectCardError {
+		b, j, e := h.CollectCardinalityEstimationError(benches.DefaultPlan.SQL)
+		if e != nil {
+			return nil, err
+		}
+		benches.DefaultPlan.BaseTableCardInfo, benches.DefaultPlan.JoinTableCardInfo = b, j
+	}
 	log.WithFields(log.Fields{
 		"query id": qID,
-		"query":    benches.SQL,
-		"cost":     fmt.Sprintf("%vms", originDur.Values),
+		"query":    benches.DefaultPlan.SQL,
+		"cost":     fmt.Sprintf("%vms", cost.Values),
 	}).Info("complete origin query")
 
 	rowsSet := make([][]executor.Comparable, 0)
 
 	for _, plan := range benches.Plans {
 		var rows []executor.Comparable
-		durs, rows, err := h.RunSQLWithTime(round, plan.SQL, benches.Type)
+		cost, rows, err := h.RunSQLWithTime(round, plan.SQL, benches.Type)
 		if err != nil {
 			return nil, err
+		}
+		rowsSet = append(rowsSet, rows)
+		plan.Cost = cost
+
+		if h.enableCollectCardError {
+			b, j, e := h.CollectCardinalityEstimationError(plan.SQL)
+			if e != nil {
+				return nil, err
+			}
+			plan.BaseTableCardInfo, plan.JoinTableCardInfo = b, j
+			var baseTableQErrorStats [][]interface{}
+			var joinTableQErrorStats [][]interface{}
+			for _, c := range plan.BaseTableCardInfo {
+				baseTableQErrorStats = append(baseTableQErrorStats, []interface{}{c.QError, c.OpInfo})
+			}
+			for _, c := range plan.JoinTableCardInfo {
+				joinTableQErrorStats = append(joinTableQErrorStats, []interface{}{c.QError, c.OpInfo})
+			}
+			log.WithFields(log.Fields{
+				"#base table": len(plan.BaseTableCardInfo),
+				"base table":  baseTableQErrorStats,
+				"#join table": len(plan.JoinTableCardInfo),
+				"join table":  joinTableQErrorStats,
+			}).Infof("cardinality estimation error for query %s, plan%d", benches.QueryID, plan.Plan)
 		}
 
 		log.WithFields(log.Fields{
 			"query id": qID,
 			"query":    plan.SQL,
-			"cost":     fmt.Sprintf("%vms", durs.Values),
+			"cost":     fmt.Sprintf("%vms", cost.Values),
 		}).Infof("complete execution plan%d", plan.Plan)
-
-		rowsSet = append(rowsSet, rows)
-		plan.Cost = durs
 	}
 	err = verifyQueryResult(originList, rowsSet)
 	return
 }
 
-func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Durations, []executor.Comparable, error) {
+func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Metrics, []executor.Comparable, error) {
 	var (
-		costs = Durations(benchstat.Metrics{
+		costs = Metrics(benchstat.Metrics{
 			Unit: "ms",
 		})
 		list []executor.Comparable
@@ -137,6 +166,22 @@ func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Dur
 	return &costs, list, err
 }
 
+func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable []*executor.CardinalityInfo, join []*executor.CardinalityInfo, err error) {
+	ei, err := h.exec.ExplainAnalyze(query)
+	if err != nil {
+		return nil, nil, fmt.Errorf("explain analyze error: %v", err)
+	}
+	cis := executor.CollectEstAndActRows(ei)
+	for _, ci := range cis {
+		if ci.Op == "Selection" {
+			baseTable = append(baseTable, ci)
+		} else if strings.Contains(ci.Op, "Join") {
+			join = append(join, ci)
+		}
+	}
+	return
+}
+
 func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *Benches, err error) {
 	sql, err := BufferOut(query)
 	if err != nil {
@@ -154,12 +199,15 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 	}
 
 	benches = &Benches{
-		QueryID:     queryID,
-		SQL:         sql,
-		Query:       query,
-		Hints:       hints,
-		Explanation: explanation,
-		Plans:       make([]*Bench, 0),
+		QueryID: queryID,
+		DefaultPlan: Bench{
+			Plan:        0,
+			SQL:         sql,
+			Hints:       hints,
+			Explanation: explanation,
+		},
+		Query: query,
+		Plans: make([]*Bench, 0),
 	}
 
 	var optHints *[]*ast.TableOptimizerHint
@@ -195,8 +243,8 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 			return
 		}
 
-		if benches.Explanation.Equal(explanation) {
-			benches.DefaultPlan = id
+		if benches.DefaultPlan.Explanation.Equal(explanation) {
+			benches.DefaultPlan.Plan = id
 		}
 
 		benches.Plans = append(benches.Plans,
@@ -281,4 +329,31 @@ func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.T
 		err = errors.New(fmt.Sprintf("Unsupported query: %s", sql))
 	}
 	return
+}
+
+func IsSubOptimal(defPlan *Bench, plan *Bench) bool {
+	const alpha, thresholdPct, thresholdDiff = 0.05, 0.9, 300
+	if plan.Cost.Mean >= thresholdPct*defPlan.Cost.Mean || (defPlan.Cost.Mean-plan.Cost.Mean) < thresholdDiff {
+		return false
+	}
+	defaultPlanCost, currentPlanCost := defPlan.Cost, plan.Cost
+	pVal, testErr := benchstat.TTest(&benchstat.Metrics{
+		Unit:    defaultPlanCost.Unit,
+		Values:  defaultPlanCost.Values,
+		RValues: defaultPlanCost.RValues,
+		Min:     defaultPlanCost.Min,
+		Mean:    defaultPlanCost.Mean,
+		Max:     defaultPlanCost.Max,
+	}, &benchstat.Metrics{
+		Unit:    currentPlanCost.Unit,
+		Values:  currentPlanCost.Values,
+		RValues: currentPlanCost.RValues,
+		Min:     currentPlanCost.Min,
+		Mean:    currentPlanCost.Mean,
+		Max:     currentPlanCost.Max,
+	})
+	if testErr != nil || testErr == nil && pVal < alpha {
+		return true
+	}
+	return false
 }
