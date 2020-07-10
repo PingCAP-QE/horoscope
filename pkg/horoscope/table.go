@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"github.com/jedib0t/go-pretty/table"
-	"golang.org/x/perf/benchstat"
 )
 
 // Table is used for displaying in output
@@ -36,59 +35,55 @@ type Row struct {
 	BestPlanDur    string
 	OptimalPlan    []string
 	Effectiveness  float64
+	EstRowsQError  []string
 }
 
 func (r *Row) toTableRows() table.Row {
 	var row table.Row
 	row = append(row, r.QueryId, r.PlanSpaceCount, r.DefaultPlanDur, r.BestPlanDur,
-		fmt.Sprintf("%.1f%%", r.Effectiveness*100), strings.Join(r.OptimalPlan, ","), r.Query)
+		fmt.Sprintf("%.1f%%", r.Effectiveness*100), strings.Join(r.OptimalPlan, ","), strings.Join(r.EstRowsQError, " "), r.Query)
 	return row
 }
 
 type BenchCollection []*Benches
 
 func (c *BenchCollection) Table() Table {
-	alpha := 0.05
-	table := Table{Metric: "execution time", Headers: []string{"id", "#plan space", "default execution time", "best plan execution time", "effectiveness", "better optimal plans", "query"}}
+	table := Table{Metric: "execution time", Headers: []string{"id", "#plan space", "default execution time", "best plan execution time", "effectiveness", "better optimal plans", "estRow q-error", "query"}}
 	for _, b := range *c {
-		defaultPlanDurs, bestPlanDurs, betterPlanCount, optimalPlan := b.DefaultPlan.Cost, b.DefaultPlan.Cost, 0, make([]string, 0)
-
+		defaultPlan, bestPlan, betterPlanCount, optimalPlan := &b.DefaultPlan, &b.DefaultPlan, 0, make([]string, 0)
+		baseTableBookMap, baseTableMetrics := make(map[string]struct{}), Metrics{}
+		var estRowsQError []string
 		for _, p := range b.Plans {
-			if p.Cost.Mean < defaultPlanDurs.Mean {
-				currentPlanDurs := p.Cost
-				pval, testerr := benchstat.TTest(&benchstat.Metrics{
-					Unit:    defaultPlanDurs.Unit,
-					Values:  defaultPlanDurs.Values,
-					RValues: defaultPlanDurs.RValues,
-					Min:     defaultPlanDurs.Min,
-					Mean:    defaultPlanDurs.Mean,
-					Max:     defaultPlanDurs.Max,
-				}, &benchstat.Metrics{
-					Unit:    currentPlanDurs.Unit,
-					Values:  currentPlanDurs.Values,
-					RValues: currentPlanDurs.RValues,
-					Min:     currentPlanDurs.Min,
-					Mean:    currentPlanDurs.Mean,
-					Max:     currentPlanDurs.Max,
-				})
-				if testerr != nil || testerr == nil && pval < alpha {
-					betterPlanCount += 1
-					optimalPlan = append(optimalPlan, fmt.Sprintf("#%d(%0.1f%%)", p.Plan, 100*currentPlanDurs.Mean/defaultPlanDurs.Mean))
-					if currentPlanDurs.Mean < bestPlanDurs.Mean {
-						bestPlanDurs = currentPlanDurs
-					}
+			if IsSubOptimal(defaultPlan, p) {
+				betterPlanCount += 1
+				optimalPlan = append(optimalPlan, fmt.Sprintf("#%d(%0.1f%%)", p.Plan, 100*p.Cost.Mean/defaultPlan.Cost.Mean))
+				if p.Cost.Mean < bestPlan.Cost.Mean {
+					bestPlan = p
+				}
+			}
+			for _, c := range p.BaseTableCardInfo {
+				if _, ok := baseTableBookMap[c.OpInfo]; !ok {
+					baseTableBookMap[c.OpInfo] = struct{}{}
+					baseTableMetrics.Values = append(baseTableMetrics.Values, c.QError)
 				}
 			}
 		}
+		estRowsQError = append(estRowsQError, fmt.Sprintf("count:%d, median:%.1f, 90th:%.1f, 95th:%.1f, max:%.1f",
+			len(baseTableMetrics.Values),
+			baseTableMetrics.quantile(0.5),
+			baseTableMetrics.quantile(0.9),
+			baseTableMetrics.quantile(0.95),
+			baseTableMetrics.quantile(1)))
 		planSpaceCount := len(b.Plans)
 		row := Row{
 			QueryId:        b.QueryID,
 			Query:          b.DefaultPlan.SQL,
 			PlanSpaceCount: len(b.Plans),
 			DefaultPlanDur: b.DefaultPlan.Cost.format(),
-			BestPlanDur:    bestPlanDurs.format(),
+			BestPlanDur:    bestPlan.Cost.format(),
 			OptimalPlan:    optimalPlan,
 			Effectiveness:  float64(planSpaceCount-betterPlanCount) / float64(planSpaceCount),
+			EstRowsQError:  estRowsQError,
 		}
 		table.Rows = append(table.Rows, &row)
 	}

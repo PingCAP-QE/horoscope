@@ -14,6 +14,7 @@ type ExplainAnalyzeInfo struct {
 	Op      string
 	EstRows float64
 	ActRows float64
+	OpInfo  string
 	Items   []*ExplainAnalyzeInfo
 	parent  *ExplainAnalyzeInfo
 }
@@ -24,7 +25,7 @@ type CardinalityInfo struct {
 }
 
 func NewExplainAnalyzeInfo(data Rows) *ExplainAnalyzeInfo {
-	if !data.Columns[0:3].Equal([]string{"id", "estRows", "actRows"}) {
+	if !data.Columns[0:7].Equal([]string{"id", "estRows", "actRows", "task", "access object", "execution info", "operator info"}) {
 		return nil
 	}
 	var ei, lastInfo *ExplainAnalyzeInfo
@@ -33,12 +34,12 @@ func NewExplainAnalyzeInfo(data Rows) *ExplainAnalyzeInfo {
 		op, level := parseAnalyzeID(row[0])
 		estRows := parseFloatColumn(row[1])
 		actRows := parseFloatColumn(row[2])
+		opInfo := row[6]
 		cur := &ExplainAnalyzeInfo{
 			Op:      op,
 			EstRows: estRows,
 			ActRows: actRows,
-			Items:   nil,
-			parent:  nil,
+			OpInfo:  opInfo,
 		}
 		if index == 0 {
 			ei, lastInfo = cur, cur

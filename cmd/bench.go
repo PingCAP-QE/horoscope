@@ -88,7 +88,7 @@ func bench(*cli.Context) error {
 		log.WithFields(log.Fields{
 			"query id":      benches.QueryID,
 			"query":         benches.DefaultPlan.SQL,
-			"default plan":  benches.DefaultPlan,
+			"default plan":  benches.DefaultPlan.Plan,
 			"default hints": benches.DefaultPlan.Hints,
 			"cost":          fmt.Sprintf("%v", benches.DefaultPlan.Cost.Values),
 			"plan size":     len(benches.Plans),
@@ -99,7 +99,7 @@ func bench(*cli.Context) error {
 		}).Debug("Default explanation")
 		collection = append(collection, benches)
 		for _, plan := range benches.Plans {
-			if plan.Cost.Mean < benches.DefaultPlan.Cost.Mean && plan.Plan != benches.DefaultPlan.Plan {
+			if horoscope.IsSubOptimal(&benches.DefaultPlan, plan) && plan.Plan != benches.DefaultPlan.Plan {
 				log.WithFields(log.Fields{
 					"query id":     benches.QueryID,
 					"better plan":  plan.Plan,

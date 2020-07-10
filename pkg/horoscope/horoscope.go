@@ -104,20 +104,20 @@ func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
 				return nil, err
 			}
 			plan.BaseTableCardInfo, plan.JoinTableCardInfo = b, j
-			var baseTableQErrorStats []float64
-			var joinTableQErrorStats []float64
+			var baseTableQErrorStats [][]interface{}
+			var joinTableQErrorStats [][]interface{}
 			for _, c := range plan.BaseTableCardInfo {
-				baseTableQErrorStats = append(baseTableQErrorStats, c.QError)
+				baseTableQErrorStats = append(baseTableQErrorStats, []interface{}{c.QError, c.OpInfo})
 			}
 			for _, c := range plan.JoinTableCardInfo {
-				joinTableQErrorStats = append(joinTableQErrorStats, c.QError)
+				joinTableQErrorStats = append(joinTableQErrorStats, []interface{}{c.QError, c.OpInfo})
 			}
 			log.WithFields(log.Fields{
 				"#base table": len(plan.BaseTableCardInfo),
 				"base table":  baseTableQErrorStats,
 				"#join table": len(plan.JoinTableCardInfo),
 				"join table":  joinTableQErrorStats,
-			}).Infof("cardinality estimation error for plan%d", plan.Plan)
+			}).Infof("cardinality estimation error for query %s, plan%d", benches.QueryID, plan.Plan)
 		}
 
 		log.WithFields(log.Fields{
@@ -329,4 +329,31 @@ func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.T
 		err = errors.New(fmt.Sprintf("Unsupported query: %s", sql))
 	}
 	return
+}
+
+func IsSubOptimal(defPlan *Bench, plan *Bench) bool {
+	const alpha, thresholdPct, thresholdDiff = 0.05, 0.9, 300
+	if plan.Cost.Mean >= thresholdPct*defPlan.Cost.Mean || (defPlan.Cost.Mean-plan.Cost.Mean) < thresholdDiff {
+		return false
+	}
+	defaultPlanCost, currentPlanCost := defPlan.Cost, plan.Cost
+	pVal, testErr := benchstat.TTest(&benchstat.Metrics{
+		Unit:    defaultPlanCost.Unit,
+		Values:  defaultPlanCost.Values,
+		RValues: defaultPlanCost.RValues,
+		Min:     defaultPlanCost.Min,
+		Mean:    defaultPlanCost.Mean,
+		Max:     defaultPlanCost.Max,
+	}, &benchstat.Metrics{
+		Unit:    currentPlanCost.Unit,
+		Values:  currentPlanCost.Values,
+		RValues: currentPlanCost.RValues,
+		Min:     currentPlanCost.Min,
+		Mean:    currentPlanCost.Mean,
+		Max:     currentPlanCost.Max,
+	})
+	if testErr != nil || testErr == nil && pVal < alpha {
+		return true
+	}
+	return false
 }

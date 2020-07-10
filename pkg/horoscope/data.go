@@ -46,31 +46,31 @@ type Bench struct {
 
 type Metrics benchstat.Metrics
 
-func (d *Metrics) format() string {
-	mean, diff := d.formatMean(), d.formatDiff()
+func (m *Metrics) format() string {
+	mean, diff := m.formatMean(), m.formatDiff()
 	return fmt.Sprintf("%s ±%3s", mean, diff)
 }
 
-func (d *Metrics) formatMean() string {
-	mean := d.Mean
+func (m *Metrics) formatMean() string {
+	mean := m.Mean
 	return fmt.Sprintf("%.1fms", mean)
 }
 
-func (d *Metrics) formatDiff() string {
-	if d.Mean == 0 || d.Max == 0 {
+func (m *Metrics) formatDiff() string {
+	if m.Mean == 0 || m.Max == 0 {
 		return ""
 	}
-	diff := math.Max(1-d.Min/d.Max,
-		d.Max/d.Min-1)
+	diff := math.Max(1-m.Min/m.Max,
+		m.Max/m.Min-1)
 	return fmt.Sprintf("%.0f%%", diff*100)
 }
 
 // computeStats updates the derived statistics in d from the raw
 // samples in d.Values.
-func (d *Metrics) computeStats() {
+func (m *Metrics) computeStats() {
 	var value []float64
 	var rValue []float64
-	for _, v := range d.Values {
+	for _, v := range m.Values {
 		value = append(value, v)
 	}
 	values := stats.Sample{Xs: value}
@@ -79,9 +79,14 @@ func (d *Metrics) computeStats() {
 	for _, value := range value {
 		if lo <= value && value <= hi {
 			rValue = append(rValue, value)
-			d.RValues = append(d.RValues, value)
+			m.RValues = append(m.RValues, value)
 		}
 	}
-	d.Min, d.Max = stats.Bounds(value)
-	d.Mean = stats.Mean(rValue)
+	m.Min, m.Max = stats.Bounds(value)
+	m.Mean = stats.Mean(rValue)
+}
+
+func (m *Metrics) quantile(q float64) float64 {
+	values := stats.Sample{Xs: m.Values}
+	return values.Quantile(q)
 }
