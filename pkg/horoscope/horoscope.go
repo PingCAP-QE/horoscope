@@ -14,18 +14,17 @@
 package horoscope
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/model"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/perf/benchstat"
 
+	"github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 )
@@ -183,7 +182,7 @@ func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable [
 }
 
 func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *Benches, err error) {
-	sql, err := BufferOut(query)
+	sql, err := pkg.BufferOut(query)
 	if err != nil {
 		return
 	}
@@ -256,15 +255,6 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 	}
 }
 
-func BufferOut(node ast.Node) (string, error) {
-	out := new(bytes.Buffer)
-	err := node.Restore(format.NewRestoreCtx(format.RestoreStringDoubleQuotes, out))
-	if err != nil {
-		return "", err
-	}
-	return out.String(), nil
-}
-
 func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
 	if len(hints) > 0 {
 		for _, hint := range hints {
@@ -307,7 +297,7 @@ func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId int64) (st
 			})
 		}
 	}
-	return BufferOut(node)
+	return pkg.BufferOut(node)
 }
 
 func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.TableOptimizerHint, err error) {
