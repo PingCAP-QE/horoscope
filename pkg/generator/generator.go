@@ -24,6 +24,12 @@ type Generator struct {
 	db *types.Database
 }
 
+func NewGenerator(db *types.Database) *Generator {
+	return &Generator{
+		db: db,
+	}
+}
+
 func (g *Generator) SelectStmt() string {
 	tables, columns := g.RdTablesAndColumns()
 	selectStmt := fmt.Sprintf("SELECT * FROM %s", strings.Join(tables, ","))

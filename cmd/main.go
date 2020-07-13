@@ -91,6 +91,7 @@ func main() {
 		},
 		Commands: cli.Commands{
 			benchCommand,
+			genCommand,
 			queryCommand,
 			explainCommand,
 			infoCommand,
