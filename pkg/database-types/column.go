@@ -14,25 +14,19 @@
 package types
 
 import (
-	"errors"
 	"fmt"
-	"regexp"
 
 	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/types"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
-)
-
-var (
-	typePattern = regexp.MustCompile(`([a-z]*)\(?([\d,]*)\)?`)
 )
 
 // Column defines database column
 type Column struct {
 	Table *Table
 	Name  model.CIStr
-	Type  string
-	Args  string
+	Type  *types.FieldType
 	Null  bool
 	Key   string
 }
@@ -42,15 +36,11 @@ func (c Column) String() string {
 }
 
 func (c Column) FullType() string {
-	if c.Args == "" {
-		return c.Type
-	} else {
-		return fmt.Sprintf("%s(%s)", c.Type, c.Args)
-	}
+	return c.Type.String()
 }
 
 func LoadColumn(table *Table, row executor.Row) (column *Column, err error) {
-	tp, args, err := parseType(row[1])
+	tp, err := NewParser().ParseFieldType(row[1])
 	if err != nil {
 		return
 	}
@@ -59,7 +49,6 @@ func LoadColumn(table *Table, row executor.Row) (column *Column, err error) {
 		Table: table,
 		Name:  model.NewCIStr(row[0]),
 		Type:  tp,
-		Args:  args,
 		Null:  ifNull(row[2]),
 		Key:   row[3],
 	}
@@ -68,15 +57,4 @@ func LoadColumn(table *Table, row executor.Row) (column *Column, err error) {
 
 func ifNull(null string) bool {
 	return null == "YES"
-}
-
-// ParseType parse types and data length
-func parseType(rawType string) (tp string, args string, err error) {
-	matches := typePattern.FindStringSubmatch(rawType)
-	if len(matches) != 3 {
-		err = errors.New(fmt.Sprintf("Invalid column type: %s", rawType))
-		return
-	}
-	tp, args = matches[1], matches[2]
-	return
 }
