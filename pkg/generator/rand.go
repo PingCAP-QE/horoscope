@@ -140,3 +140,15 @@ func RdSQLValue(tp *types.FieldType) string {
 		panic(fmt.Sprintf("unsupported field type: %s", tp.String()))
 	}
 }
+
+func RdBinaryOperator(ops []string) string {
+	return ops[Rd(len(ops))]
+}
+
+func RdComparisionOp() string {
+	return RdBinaryOperator([]string{"=", "<", ">", "<=", ">=", "<>"})
+}
+
+func RdLogicOp() string {
+	return RdBinaryOperator([]string{"AND", "OR", "XOR"})
+}

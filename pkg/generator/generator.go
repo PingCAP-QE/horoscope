@@ -13,8 +13,48 @@
 
 package generator
 
-import "github.com/chaos-mesh/horoscope/pkg/database-types"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/chaos-mesh/horoscope/pkg/database-types"
+)
 
 type Generator struct {
 	db *types.Database
+}
+
+func (g *Generator) SelectStmt() string {
+	tables, columns := g.RdTablesAndColumns()
+	selectStmt := fmt.Sprintf("SELECT * FROM %s", strings.Join(tables, ","))
+	if len(columns) > 0 {
+		whereExpr := ""
+		for _, column := range columns {
+			if whereExpr != "" {
+				whereExpr += fmt.Sprintf(" %s ", RdLogicOp())
+			}
+			whereExpr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), RdSQLValue(column.Type))
+		}
+		selectStmt += fmt.Sprintf("WHERE %s", whereExpr)
+	}
+	return selectStmt
+}
+
+func (g *Generator) RdTablesAndColumns() ([]string, []*types.Column) {
+	tableNums := Rd(len(g.db.BaseTables) + 1)
+	columns := make([]*types.Column, 0)
+	tables := make([]string, tableNums)
+	for tableName, table := range g.db.BaseTables {
+		tableNums--
+		if tableNums < 0 {
+			break
+		}
+		tables = append(tables, tableName)
+		for _, column := range table.Columns {
+			if column.Key != "" {
+				columns = append(columns, column)
+			}
+		}
+	}
+	return tables, columns
 }
