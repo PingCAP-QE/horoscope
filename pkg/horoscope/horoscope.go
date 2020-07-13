@@ -26,7 +26,7 @@ import (
 
 	"github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
-	"github.com/chaos-mesh/horoscope/pkg/generator"
+	"github.com/chaos-mesh/horoscope/pkg/loader"
 )
 
 const (
@@ -41,18 +41,18 @@ var (
 type (
 	Horoscope struct {
 		exec                   executor.Executor
-		gen                    generator.Generator
+		loader                 loader.QueryLoader
 		enableCollectCardError bool
 	}
 	QueryType uint8
 )
 
-func NewHoroscope(exec executor.Executor, gen generator.Generator, enableCollectCardError bool) *Horoscope {
-	return &Horoscope{exec: exec, gen: gen, enableCollectCardError: enableCollectCardError}
+func NewHoroscope(exec executor.Executor, loader loader.QueryLoader, enableCollectCardError bool) *Horoscope {
+	return &Horoscope{exec: exec, loader: loader, enableCollectCardError: enableCollectCardError}
 }
 
 func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
-	qID, query := h.gen.Next()
+	qID, query := h.loader.Next()
 	if query == nil {
 		return
 	}

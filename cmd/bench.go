@@ -20,8 +20,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
-	"github.com/chaos-mesh/horoscope/pkg/generator"
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
+	"github.com/chaos-mesh/horoscope/pkg/loader"
 )
 
 var (
@@ -64,7 +64,7 @@ func bench(*cli.Context) error {
 			return err
 		}
 	}
-	horo = horoscope.NewHoroscope(Exec, generator.NewStandardGenerator(workloadDir), enableCollectCardError)
+	horo = horoscope.NewHoroscope(Exec, loader.NewStandardLoader(workloadDir), enableCollectCardError)
 	var collection horoscope.BenchCollection
 	for {
 		benches, err := horo.Next(round)

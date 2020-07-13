@@ -11,17 +11,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package generator
+package loader
 
 import "github.com/pingcap/parser/ast"
 
-type Generator interface {
+type QueryLoader interface {
 	Next() (queryID string, queryStmt ast.StmtNode)
 }
 
-// NoopGenerator does nothing
-type NoopGenerator struct{}
+// NoopLoader does nothing
+type NoopLoader struct{}
 
-func (n NoopGenerator) Next() (queryID string, queryStmt ast.StmtNode) {
+func (n NoopLoader) Next() (queryID string, queryStmt ast.StmtNode) {
 	return "", nil
 }
