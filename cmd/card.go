@@ -32,6 +32,7 @@ var (
 				Name:        "columns",
 				Usage:       "collect cardinality estimation error, format of 't1:c1,t1:c2,t2:c1...'",
 				Destination: &columns,
+				Required:    true,
 			},
 		},
 	}

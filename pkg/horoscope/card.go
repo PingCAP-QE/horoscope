@@ -17,9 +17,10 @@ const (
 )
 
 type Cardinalitor struct {
-	exec         executor.Executor
-	Type         CardinalityQueryType
-	TableColumns map[string][]string
+	exec            executor.Executor
+	Type            CardinalityQueryType
+	TableColumns    map[string][]string
+	MaxLimitRequest int
 }
 
 func NewCardinalitor(exec executor.Executor, typ CardinalityQueryType, tableColumns map[string][]string) *Cardinalitor {
@@ -49,6 +50,14 @@ func (c *Cardinalitor) Test() (map[string]map[string]*Metrics, error) {
 			if err != nil {
 				return nil, err
 			}
+			log.WithFields(log.Fields{
+				"table":        tableName,
+				"column":       columnName,
+				"q-error 50th": m.quantile(0.50),
+				"q-error 90th": m.quantile(0.90),
+				"q-error 95th": m.quantile(0.95),
+				"q-error max":  m.quantile(1),
+			}).Infof("q-error for %s.%s", tableName, columnName)
 			tableMap[columnName] = m
 		}
 	}
@@ -73,7 +82,8 @@ func (c *Cardinalitor) testEMQ(tableName, columnName string) (*Metrics, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, value := range rows.Data {
+		for _, row := range rows.Data {
+			value := row[0]
 			ei, err := c.exec.ExplainAnalyze(fmt.Sprintf("SELECT %s FROM %s WHERE %s = '%s'", columnName, tableName, columnName, value))
 			if err != nil {
 				return nil, err
@@ -81,12 +91,6 @@ func (c *Cardinalitor) testEMQ(tableName, columnName string) (*Metrics, error) {
 			cis := executor.CollectEstAndActRows(ei)
 			qError := cis[0].QError
 			metrics.Values = append(metrics.Values, qError)
-			log.WithFields(log.Fields{
-				"table":    tableName,
-				"column":   columnName,
-				"value":    value,
-				"template": "EMQ",
-			}).Infof("q-error is %.1f", qError)
 		}
 	}
 	return metrics, nil

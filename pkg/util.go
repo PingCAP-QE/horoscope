@@ -10,7 +10,7 @@ import (
 
 func QError(est, act float64) float64 {
 	if act == 0 || est == 0 {
-		return math.NaN()
+		return math.Inf(1)
 	}
 	z := est / act
 	zp := act / est
