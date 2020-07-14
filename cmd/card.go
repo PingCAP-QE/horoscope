@@ -16,6 +16,7 @@ package main
 import (
 	"github.com/urfave/cli/v2"
 	"strings"
+	"time"
 
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 )
@@ -23,6 +24,8 @@ import (
 var (
 	cardinalitor *horoscope.Cardinalitor
 	columns      string
+	typ          int
+	timeout      time.Duration
 	cardCommand  = &cli.Command{
 		Name:   "card",
 		Usage:  "test the cardinality estimations",
@@ -33,6 +36,19 @@ var (
 				Usage:       "collect cardinality estimation error, format of 't1:c1,t1:c2,t2:c1...'",
 				Destination: &columns,
 				Required:    true,
+			},
+			&cli.IntFlag{
+				Name:        "type",
+				Aliases:     []string{"t"},
+				Usage:       "0:exact match queries(A = x); 1:range(lb <= A < ub)",
+				Value:       0,
+				Destination: &typ,
+			},
+			&cli.DurationFlag{
+				Name:        "timeout",
+				Usage:       "the timeout of testing",
+				Required:    false,
+				Destination: &timeout,
 			},
 		},
 	}
@@ -49,7 +65,7 @@ func testCard(*cli.Context) error {
 		}
 		tableColumns[table] = append(tableColumns[table], column)
 	}
-	cardinalitor = horoscope.NewCardinalitor(Exec, 0, tableColumns)
+	cardinalitor = horoscope.NewCardinalitor(Exec, tableColumns, horoscope.CardinalityQueryType(typ), &timeout)
 	_, err := cardinalitor.Test()
 	return err
 }
