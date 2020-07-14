@@ -81,7 +81,7 @@ func testCard(*cli.Context) error {
 
 func renderCardTable(coll map[string]map[string]*horoscope.Metrics) string {
 	t := table.NewWriter()
-	t.AppendHeader(table.Row{"Table", "Column", "<= 2", "<= 3", "<= 4", "> 4", "max"})
+	t.AppendHeader(table.Row{"Table", "Column", "<= 2", "<= 3", "<= 4", "> 4", "max q-error"})
 	for tableName, tbl := range coll {
 		for columnName, m := range tbl {
 			s := &stats.Sample{Xs: m.Values}
