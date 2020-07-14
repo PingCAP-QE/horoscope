@@ -18,20 +18,30 @@ import (
 	"strings"
 
 	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
-type Generator struct {
-	db *types.Database
-}
+type (
+	Generator struct {
+		db   *types.Database
+		exec executor.Executor
+	}
 
-func NewGenerator(db *types.Database) *Generator {
+	Options struct {
+		MaxTables int
+		Limit     int
+	}
+)
+
+func NewGenerator(db *types.Database, exec executor.Executor) *Generator {
 	return &Generator{
-		db: db,
+		db:   db,
+		exec: exec,
 	}
 }
 
-func (g *Generator) SelectStmt() string {
-	tables, columns := g.RdTablesAndColumns()
+func (g *Generator) SelectStmt(options Options) (string, error) {
+	tables, columns := g.RdTablesAndColumns(options.MaxTables)
 	selectStmt := fmt.Sprintf("SELECT * FROM %s", strings.Join(tables, ","))
 	if len(columns) > 0 {
 		whereExpr := ""
@@ -39,15 +49,24 @@ func (g *Generator) SelectStmt() string {
 			if whereExpr != "" {
 				whereExpr += fmt.Sprintf(" %s ", RdLogicOp())
 			}
-			whereExpr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), RdSQLValue(column.Type))
+			value, err := g.RdValue(column)
+			if err != nil {
+				return "", err
+			}
+			whereExpr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), value)
 		}
 		selectStmt += fmt.Sprintf(" WHERE %s", whereExpr)
 	}
-	return selectStmt
+
+	if options.Limit != 0 {
+		selectStmt += fmt.Sprintf(" LIMIT %d", options.Limit)
+	}
+
+	return selectStmt, nil
 }
 
-func (g *Generator) RdTablesAndColumns() ([]string, []*types.Column) {
-	tableNums := Rd(len(g.db.BaseTables)) + 1
+func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, []*types.Column) {
+	tableNums := Rd(maxTables) + 1
 	columns := make([]*types.Column, 0)
 	tables := make([]string, 0, tableNums)
 	for tableName, table := range g.db.BaseTables {
@@ -63,4 +82,15 @@ func (g *Generator) RdTablesAndColumns() ([]string, []*types.Column) {
 		}
 	}
 	return tables, columns
+}
+
+func (g *Generator) RdValue(column *types.Column) (value string, err error) {
+	query := fmt.Sprintf("SELECT %s FROM %s LIMIT 100", column.Name.String(), column.Table.Name.String())
+	rows, err := g.exec.Query(query)
+	if err != nil {
+		return
+	}
+	row := rows.Data[Rd(len(rows.Data))]
+	value = FormatValue(column.Type, row[0])
+	return
 }

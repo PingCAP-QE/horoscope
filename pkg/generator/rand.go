@@ -152,3 +152,12 @@ func RdComparisionOp() string {
 func RdLogicOp() string {
 	return RdBinaryOperator([]string{"AND", "OR", "XOR"})
 }
+
+func FormatValue(tp *types.FieldType, value string) string {
+	switch tp.EvalType() {
+	case types.ETInt, types.ETReal, types.ETDecimal:
+		return value
+	default:
+		return FormatStringLiteral(value)
+	}
+}

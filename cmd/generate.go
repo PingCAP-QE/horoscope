@@ -26,6 +26,7 @@ import (
 
 var (
 	planNums       int
+	genOptions     generator.Options
 	outputWorkload = "benchmark/dyn"
 	prepareFile    = path.Join(outputWorkload, "prepare.sql")
 	queriesDir     = path.Join(outputWorkload, "queries")
@@ -38,16 +39,34 @@ var (
 			&cli.IntFlag{
 				Name:        "plans",
 				Aliases:     []string{"p"},
-				Usage:       "the 'numbers' of plans",
+				Usage:       "the `numbers` of plans",
 				Value:       20,
 				Destination: &planNums,
 			},
+			&cli.IntFlag{
+				Name:        "tables",
+				Aliases:     []string{"t"},
+				Usage:       "the max `numbers` of tables",
+				Value:       1,
+				Destination: &genOptions.MaxTables,
+			},
+			&cli.IntFlag{
+				Name:        "limit",
+				Aliases:     []string{"l"},
+				Usage:       "`limit` of each query",
+				Value:       100,
+				Destination: &genOptions.Limit,
+			},
 		},
 		Action: func(context *cli.Context) error {
-			gen := generator.NewGenerator(Database)
+			gen := generator.NewGenerator(Database, Exec)
 			plans := make([]string, 0, planNums)
 			for i := 0; i < planNums; i++ {
-				plans = append(plans, gen.SelectStmt())
+				stmt, err := gen.SelectStmt(genOptions)
+				if err != nil {
+					return err
+				}
+				plans = append(plans, stmt)
 			}
 			fmt.Println(plans)
 			err := ioutil.WriteFile(prepareFile, []byte(genPrepare(plans)), 0644)
