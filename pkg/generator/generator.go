@@ -13,15 +13,84 @@
 
 package generator
 
-import "github.com/pingcap/parser/ast"
+import (
+	"fmt"
+	"strings"
 
-type Generator interface {
-	Next() (queryID string, queryStmt ast.StmtNode)
+	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/executor"
+)
+
+type (
+	Generator struct {
+		db   *types.Database
+		exec executor.Executor
+	}
+
+	Options struct {
+		MaxTables int
+		Limit     int
+	}
+)
+
+func NewGenerator(db *types.Database, exec executor.Executor) *Generator {
+	return &Generator{
+		db:   db,
+		exec: exec,
+	}
 }
 
-// NoopGenerator does nothing
-type NoopGenerator struct{}
+func (g *Generator) SelectStmt(options Options) (string, error) {
+	tables, columns := g.RdTablesAndColumns(options.MaxTables)
+	selectStmt := fmt.Sprintf("SELECT * FROM %s", strings.Join(tables, ","))
+	if len(columns) > 0 {
+		whereExpr := ""
+		for _, column := range columns {
+			if whereExpr != "" {
+				whereExpr += fmt.Sprintf(" %s ", RdLogicOp())
+			}
+			value, err := g.RdValue(column)
+			if err != nil {
+				return "", err
+			}
+			whereExpr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), value)
+		}
+		selectStmt += fmt.Sprintf(" WHERE %s", whereExpr)
+	}
 
-func (n NoopGenerator) Next() (queryID string, queryStmt ast.StmtNode) {
-	return "", nil
+	if options.Limit != 0 {
+		selectStmt += fmt.Sprintf(" LIMIT %d", options.Limit)
+	}
+
+	return selectStmt, nil
+}
+
+func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, []*types.Column) {
+	tableNums := Rd(maxTables) + 1
+	columns := make([]*types.Column, 0)
+	tables := make([]string, 0, tableNums)
+	for tableName, table := range g.db.BaseTables {
+		tableNums--
+		if tableNums < 0 {
+			break
+		}
+		tables = append(tables, tableName)
+		for _, column := range table.Columns {
+			if column.Key != "" {
+				columns = append(columns, column)
+			}
+		}
+	}
+	return tables, columns
+}
+
+func (g *Generator) RdValue(column *types.Column) (value string, err error) {
+	query := fmt.Sprintf("SELECT %s FROM %s LIMIT 100", column.Name.String(), column.Table.Name.String())
+	rows, err := g.exec.Query(query)
+	if err != nil {
+		return
+	}
+	row := rows.Data[Rd(len(rows.Data))]
+	value = FormatValue(column.Type, row[0])
+	return
 }
