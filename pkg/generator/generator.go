@@ -85,12 +85,11 @@ func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, []*types.Column
 }
 
 func (g *Generator) RdValue(column *types.Column) (value string, err error) {
-	query := fmt.Sprintf("SELECT %s FROM %s LIMIT 100", column.Name.String(), column.Table.Name.String())
+	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY RAND() LIMIT 1", column.Name.String(), column.Table.Name.String())
 	rows, err := g.exec.Query(query)
 	if err != nil {
 		return
 	}
-	row := rows.Data[Rd(len(rows.Data))]
-	value = FormatValue(column.Type, row[0])
+	value = FormatValue(column.Type, rows.Data[0][0])
 	return
 }
