@@ -20,14 +20,15 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
-	"github.com/chaos-mesh/horoscope/pkg/generator"
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
+	"github.com/chaos-mesh/horoscope/pkg/loader"
 )
 
 var (
 	horo                   *horoscope.Horoscope
 	needPrepare            bool
 	enableCollectCardError bool
+	needVerify             bool
 	workloadDir            string
 	benchCommand           = &cli.Command{
 		Name:   "bench",
@@ -40,6 +41,13 @@ var (
 				Usage:       "prepare before benching",
 				Value:       false,
 				Destination: &needPrepare,
+			},
+			&cli.BoolFlag{
+				Name:        "verify",
+				Aliases:     []string{"v"},
+				Usage:       "need results verification",
+				Value:       false,
+				Destination: &needVerify,
 			},
 			&cli.BoolFlag{
 				Name:        "c",
@@ -64,10 +72,10 @@ func bench(*cli.Context) error {
 			return err
 		}
 	}
-	horo = horoscope.NewHoroscope(Exec, generator.NewStandardGenerator(workloadDir), enableCollectCardError)
+	horo = horoscope.NewHoroscope(Exec, loader.NewStandardLoader(workloadDir), enableCollectCardError)
 	var collection horoscope.BenchCollection
 	for {
-		benches, err := horo.Next(round)
+		benches, err := horo.Next(round, needVerify)
 		if err != nil {
 			if benches != nil {
 				log.WithFields(log.Fields{

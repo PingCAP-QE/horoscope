@@ -15,7 +15,7 @@ package types
 
 import (
 	"fmt"
-	
+
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/types"

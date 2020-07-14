@@ -11,12 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package generator
+package loader
 
 import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/pingcap/parser"
@@ -25,7 +26,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type StandardGenerator struct {
+const (
+	QueryDir = "queries"
+)
+
+type StandardLoader struct {
 	workloadDir string
 	parser      *parser.Parser
 	index       int
@@ -37,7 +42,7 @@ type queryInfo struct {
 	sql  string
 }
 
-func (g *StandardGenerator) Next() (string, ast.StmtNode) {
+func (g *StandardLoader) Next() (string, ast.StmtNode) {
 	if g.index == 0 {
 		g.init()
 	}
@@ -72,8 +77,8 @@ func (g *StandardGenerator) Next() (string, ast.StmtNode) {
 	return query.name, stmt[0]
 }
 
-func (g *StandardGenerator) init() error {
-	dir := fmt.Sprintf("%s/queries", g.workloadDir)
+func (g *StandardLoader) init() error {
+	dir := path.Join(g.workloadDir, QueryDir)
 	err := filepath.Walk(dir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -97,6 +102,6 @@ func (g *StandardGenerator) init() error {
 	return nil
 }
 
-func NewStandardGenerator(workloadDir string) Generator {
-	return &StandardGenerator{workloadDir: workloadDir, parser: parser.New()}
+func NewStandardLoader(workloadDir string) QueryLoader {
+	return &StandardLoader{workloadDir: workloadDir, parser: parser.New()}
 }

@@ -21,8 +21,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
-	"github.com/chaos-mesh/horoscope/pkg/generator"
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
+	"github.com/chaos-mesh/horoscope/pkg/loader"
 )
 
 var (
@@ -63,7 +63,7 @@ var (
 				return err
 			}
 
-			horo := horoscope.NewHoroscope(Exec, generator.NoopGenerator{}, true)
+			horo := horoscope.NewHoroscope(Exec, loader.NoopLoader{}, true)
 			dur, rows, err := horo.RunSQLWithTime(round, plan, tp)
 			if err != nil {
 				return err

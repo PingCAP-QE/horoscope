@@ -65,7 +65,7 @@ var (
 )
 
 func newScheme(*cli.Context) error {
-	if fileExist(addIndexes) || fileExist(cleanIndexes) {
+	if pathExist(addIndexes) || pathExist(cleanIndexes) {
 		return errors.New("A indexes scheme already exists")
 	}
 	add := ""
@@ -96,7 +96,7 @@ func newScheme(*cli.Context) error {
 }
 
 func clean(*cli.Context) error {
-	if fileExist(cleanIndexes) {
+	if pathExist(cleanIndexes) {
 		if !reserveIndexes {
 			err := apply(cleanIndexes)
 			if err != nil {
@@ -108,7 +108,7 @@ func clean(*cli.Context) error {
 			return err
 		}
 	}
-	if fileExist(addIndexes) {
+	if pathExist(addIndexes) {
 		err := os.Remove(addIndexes)
 		if err != nil {
 			return err
@@ -118,7 +118,7 @@ func clean(*cli.Context) error {
 }
 
 func apply(path string) error {
-	if !fileExist(path) {
+	if !pathExist(path) {
 		return errors.New(fmt.Sprintf("Fail to apply index scheme: file %s not found", path))
 	}
 	data, err := ioutil.ReadFile(path)
@@ -138,7 +138,7 @@ func apply(path string) error {
 	return nil
 }
 
-func fileExist(path string) bool {
+func pathExist(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil || !os.IsNotExist(err)
 }
