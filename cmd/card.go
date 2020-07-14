@@ -70,7 +70,7 @@ func testCard(*cli.Context) error {
 		}
 		tableColumns[table] = append(tableColumns[table], column)
 	}
-	cardinalitor = horoscope.NewCardinalitor(Exec, tableColumns, horoscope.CardinalityQueryType(typ), &timeout)
+	cardinalitor = horoscope.NewCardinalitor(Exec, tableColumns, horoscope.CardinalityQueryType(typ), timeout)
 	result, err := cardinalitor.Test()
 	if err != nil {
 		return err

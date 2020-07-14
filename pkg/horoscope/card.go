@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/chaos-mesh/horoscope/pkg/executor"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
 type CardinalityQueryType int
@@ -23,10 +24,10 @@ type Cardinalitor struct {
 	exec         executor.Executor
 	Type         CardinalityQueryType
 	TableColumns map[string][]string
-	Timeout      *time.Duration
+	Timeout      time.Duration
 }
 
-func NewCardinalitor(exec executor.Executor, tableColumns map[string][]string, typ CardinalityQueryType, timeout *time.Duration) *Cardinalitor {
+func NewCardinalitor(exec executor.Executor, tableColumns map[string][]string, typ CardinalityQueryType, timeout time.Duration) *Cardinalitor {
 	return &Cardinalitor{
 		exec:         exec,
 		Type:         typ,
