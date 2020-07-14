@@ -102,7 +102,7 @@ func (e *MySQLExecutor) GetHints(query string) (hints Hints, err error) {
 }
 
 func (e *MySQLExecutor) Explain(query string) (rows Rows, warnings []error, err error) {
-	rows, err = e.Query(fmt.Sprintf("EXPLAIN %s", query))
+	rows, err = e.Query(fmt.Sprintf("EXPLAIN ANALYZE %s", query))
 	if err != nil {
 		err = fmt.Errorf("explain error: %v", err)
 		return
