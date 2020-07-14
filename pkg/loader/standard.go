@@ -17,12 +17,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	_ "github.com/pingcap/tidb/types/parser_driver"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	QueryDir = "queries"
 )
 
 type StandardLoader struct {
@@ -73,7 +78,7 @@ func (g *StandardLoader) Next() (string, ast.StmtNode) {
 }
 
 func (g *StandardLoader) init() error {
-	dir := fmt.Sprintf("%s/queries", g.workloadDir)
+	dir := path.Join(g.workloadDir, QueryDir)
 	err := filepath.Walk(dir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
