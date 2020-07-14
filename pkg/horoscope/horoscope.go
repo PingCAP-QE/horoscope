@@ -51,7 +51,7 @@ func NewHoroscope(exec executor.Executor, loader loader.QueryLoader, enableColle
 	return &Horoscope{exec: exec, loader: loader, enableCollectCardError: enableCollectCardError}
 }
 
-func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
+func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) {
 	qID, query := h.loader.Next()
 	if query == nil {
 		return
@@ -125,7 +125,9 @@ func (h *Horoscope) Next(round uint) (benches *Benches, err error) {
 			"cost":     fmt.Sprintf("%vms", cost.Values),
 		}).Infof("complete execution plan%d", plan.Plan)
 	}
-	err = verifyQueryResult(originList, rowsSet)
+	if verify {
+		err = verifyQueryResult(originList, rowsSet)
+	}
 	return
 }
 
