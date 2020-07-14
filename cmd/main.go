@@ -96,6 +96,7 @@ func main() {
 			explainCommand,
 			infoCommand,
 			indexCommand,
+			cardCommand,
 		},
 	}
 
