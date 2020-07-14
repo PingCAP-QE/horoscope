@@ -14,9 +14,14 @@
 package main
 
 import (
-	"github.com/urfave/cli/v2"
+	"fmt"
+	"sort"
 	"strings"
 	"time"
+
+	"github.com/aclements/go-moremath/stats"
+	"github.com/jedib0t/go-pretty/table"
+	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 )
@@ -66,6 +71,32 @@ func testCard(*cli.Context) error {
 		tableColumns[table] = append(tableColumns[table], column)
 	}
 	cardinalitor = horoscope.NewCardinalitor(Exec, tableColumns, horoscope.CardinalityQueryType(typ), &timeout)
-	_, err := cardinalitor.Test()
-	return err
+	result, err := cardinalitor.Test()
+	if err != nil {
+		return err
+	}
+	fmt.Print(renderCardTable(result))
+	return nil
+}
+
+func renderCardTable(coll map[string]map[string]*horoscope.Metrics) string {
+	t := table.NewWriter()
+	t.AppendHeader(table.Row{"Table", "Column", "<= 2", "<= 3", "<= 4", "> 4", "max"})
+	for tableName, tbl := range coll {
+		for columnName, m := range tbl {
+			s := &stats.Sample{Xs: m.Values}
+			s.Sort()
+			c2, c3, c4 := countOf(s, 2), countOf(s, 3), countOf(s, 4)
+
+			cb4, max := len(m.Values)-c4, s.Quantile(1)
+			t.AppendRow(table.Row{tableName, columnName, c2, c3 - c2, c4 - c3, cb4, max})
+		}
+	}
+	return t.Render()
+}
+
+func countOf(s *stats.Sample, f float64) int {
+	return sort.Search(len(s.Xs), func(i int) bool {
+		return s.Xs[i] > f
+	})
 }
