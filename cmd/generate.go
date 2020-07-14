@@ -15,10 +15,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/urfave/cli/v2"
 	"io/ioutil"
 	"os"
 	"path"
+
+	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 )
@@ -44,10 +45,11 @@ var (
 		},
 		Action: func(context *cli.Context) error {
 			gen := generator.NewGenerator(Database)
-			plans := make([]string, planNums)
+			plans := make([]string, 0, planNums)
 			for i := 0; i < planNums; i++ {
 				plans = append(plans, gen.SelectStmt())
 			}
+			fmt.Println(plans)
 			err := ioutil.WriteFile(prepareFile, []byte(genPrepare(plans)), 0644)
 			if err != nil {
 				return err

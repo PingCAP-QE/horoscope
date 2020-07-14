@@ -41,15 +41,15 @@ func (g *Generator) SelectStmt() string {
 			}
 			whereExpr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), RdSQLValue(column.Type))
 		}
-		selectStmt += fmt.Sprintf("WHERE %s", whereExpr)
+		selectStmt += fmt.Sprintf(" WHERE %s", whereExpr)
 	}
 	return selectStmt
 }
 
 func (g *Generator) RdTablesAndColumns() ([]string, []*types.Column) {
-	tableNums := Rd(len(g.db.BaseTables) + 1)
+	tableNums := Rd(len(g.db.BaseTables)) + 1
 	columns := make([]*types.Column, 0)
-	tables := make([]string, tableNums)
+	tables := make([]string, 0, tableNums)
 	for tableName, table := range g.db.BaseTables {
 		tableNums--
 		if tableNums < 0 {

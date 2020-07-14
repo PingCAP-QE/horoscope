@@ -101,8 +101,8 @@ func RdString(length int) string {
 	res := ""
 	for i := 0; i < length; i++ {
 		charCode := RdRange(33, 127)
-		// char '\' and '"' should be escaped
-		if charCode == 92 || charCode == 34 {
+		// char '\' and '\'' should be escaped
+		if charCode == 92 || charCode == 39 {
 			charCode++
 			// res = fmt.Sprintf("%s%s", res, "\\")
 		}
