@@ -47,7 +47,7 @@ var (
 				Name:        "tables",
 				Aliases:     []string{"t"},
 				Usage:       "the max `numbers` of tables",
-				Value:       1,
+				Value:       3,
 				Destination: &genOptions.MaxTables,
 			},
 			&cli.IntFlag{
@@ -68,7 +68,6 @@ var (
 				}
 				plans = append(plans, stmt)
 			}
-			fmt.Println(plans)
 			err := ioutil.WriteFile(prepareFile, []byte(genPrepare(plans)), 0644)
 			if err != nil {
 				return err
