@@ -93,6 +93,7 @@ func main() {
 			benchCommand,
 			genCommand,
 			queryCommand,
+			hintCommand,
 			explainCommand,
 			infoCommand,
 			indexCommand,
