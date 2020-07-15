@@ -23,14 +23,25 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+
+	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/generator"
+)
+
+type (
+	IndexDMLPair struct {
+		add    string
+		remove string
+	}
 )
 
 var (
-	reserveIndexes bool
-	dynWorkload    = "benchmark/dyn/indexes"
-	addIndexes     = path.Join(dynWorkload, "add-indexes.sql")
-	cleanIndexes   = path.Join(dynWorkload, "clean-indexes.sql")
-	indexCommand   = &cli.Command{
+	maxIndexes, compoundLevel int
+	reserveIndexes            bool
+	dynWorkload               = "benchmark/dyn/indexes"
+	addIndexes                = path.Join(dynWorkload, "add-indexes.sql")
+	cleanIndexes              = path.Join(dynWorkload, "clean-indexes.sql")
+	indexCommand              = &cli.Command{
 		Name:  "index",
 		Usage: "Add indexes for tables",
 		Subcommands: cli.Commands{
@@ -38,6 +49,22 @@ var (
 				Name:   "new",
 				Usage:  "New indexes schemes",
 				Action: newScheme,
+				Flags: []cli.Flag{
+					&cli.IntFlag{
+						Name:        "max",
+						Aliases:     []string{"m"},
+						Usage:       "the max `numbers` of indexes in each level",
+						Value:       10,
+						Destination: &maxIndexes,
+					},
+					&cli.IntFlag{
+						Name:        "level",
+						Aliases:     []string{"l"},
+						Usage:       "the compound `level` of indexes; 0 for no compound indexes",
+						Value:       1,
+						Destination: &compoundLevel,
+					},
+				},
 			},
 			&cli.Command{
 				Name:  "add",
@@ -69,12 +96,13 @@ func newScheme(*cli.Context) error {
 		return errors.New("A indexes scheme already exists")
 	}
 	add := ""
-	clean := ""
+	remove := ""
 	for _, table := range Database.BaseTables {
-		for _, column := range table.Columns {
-			if column.Key == "" {
-				add += fmt.Sprintf("ALTER TABLE `%s` ADD INDEX (`%s`);\n", table.Name, column.Name)
-				clean += fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`;\n", table.Name, column.Name)
+		indexPairs := indexDML(table, compoundLevel, maxIndexes)
+		for _, pairs := range indexPairs {
+			for _, pair := range pairs {
+				add += pair.add
+				remove += pair.remove
 			}
 		}
 	}
@@ -86,7 +114,7 @@ func newScheme(*cli.Context) error {
 		"path": addIndexes,
 	}).Info("Add scheme `add-indexes`, use `horo index add` to apply it")
 
-	err = ioutil.WriteFile(cleanIndexes, []byte(clean), 0644)
+	err = ioutil.WriteFile(cleanIndexes, []byte(remove), 0644)
 	if err == nil {
 		log.WithFields(log.Fields{
 			"path": cleanIndexes,
@@ -131,7 +159,7 @@ func apply(path string) error {
 			log.WithField("query", query).Info("Executing...")
 			_, err = Exec.Exec(query)
 			if err != nil {
-				return err
+				log.WithField("query", query).Warnf("fails to execute: %s", err.Error())
 			}
 		}
 	}
@@ -141,4 +169,82 @@ func apply(path string) error {
 func pathExist(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil || !os.IsNotExist(err)
+}
+
+func keyName(table *types.Table, fields []string) string {
+	segments := append([]string{strings.ToUpper(table.Name.String())}, fields...)
+	segments = append(segments, "IDX")
+	return strings.Join(segments, "_")
+}
+
+func indexDML(table *types.Table, level, max int) [][]IndexDMLPair {
+	allLevelPairs := indexLevel(table, level)
+	for level, pairs := range allLevelPairs {
+		allLevelPairs[level] = randMax(pairs, max)
+	}
+	return allLevelPairs
+}
+
+func indexLevel(table *types.Table, level int) [][]IndexDMLPair {
+	allLevelPairs := make([][]IndexDMLPair, 0, level)
+	allLevelFieldLists := make([][][]string, 0, level)
+	pairs := make([]IndexDMLPair, 0, len(table.Columns))
+	fieldLists := make([][]string, 0, len(table.Columns))
+	for _, column := range table.Columns {
+		fields := []string{column.Name.String()}
+		fieldLists = append(fieldLists, fields)
+		if column.Key == "" {
+			pairs = append(pairs, fields2Pair(table, fields))
+		}
+	}
+	allLevelPairs = append(allLevelPairs, pairs)
+	allLevelFieldLists = append(allLevelFieldLists, fieldLists)
+
+	for i := 1; i < level; i++ {
+		pairs = make([]IndexDMLPair, 0)
+		fieldLists = make([][]string, 0)
+		fieldSet := make(map[string]bool)
+		for _, list := range allLevelFieldLists[i-1] {
+			for _, field := range list {
+				fieldSet[field] = true
+			}
+			for _, column := range table.Columns {
+				if !fieldSet[column.Name.String()] {
+					newList := append(list, column.Name.String())
+					fieldLists = append(fieldLists, newList)
+					pairs = append(pairs, fields2Pair(table, newList))
+				}
+			}
+			fieldSet = make(map[string]bool)
+		}
+		allLevelPairs = append(allLevelPairs, pairs)
+		allLevelFieldLists = append(allLevelFieldLists, fieldLists)
+	}
+	return allLevelPairs
+}
+
+func randMax(allPairs []IndexDMLPair, max int) []IndexDMLPair {
+	if len(allPairs) <= max {
+		return allPairs
+	}
+	pairMap := make(map[IndexDMLPair]bool)
+	for len(pairMap) < max {
+		pair := allPairs[generator.Rd(len(allPairs))]
+		pairMap[pair] = true
+	}
+
+	ret := make([]IndexDMLPair, 0, max)
+	for pair := range pairMap {
+		ret = append(ret, pair)
+	}
+	return ret
+}
+
+func fields2Pair(table *types.Table, fields []string) IndexDMLPair {
+	key := keyName(table, fields)
+	fieldList := strings.Join(fields, ",")
+	return IndexDMLPair{
+		add:    fmt.Sprintf("ALTER TABLE `%s` ADD INDEX `%s` (%s);\n", table.Name, key, fieldList),
+		remove: fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`;\n", table.Name, key),
+	}
 }

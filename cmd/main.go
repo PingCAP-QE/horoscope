@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 
+	_ "github.com/pingcap/tidb/types/parser_driver"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
