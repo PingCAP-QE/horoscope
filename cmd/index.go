@@ -173,7 +173,7 @@ func pathExist(path string) bool {
 
 func keyName(table *types.Table, fields []string) string {
 	segments := append([]string{strings.ToUpper(table.Name.String())}, fields...)
-	segments = append(segments, "ID")
+	segments = append(segments, "IDX")
 	return strings.Join(segments, "_")
 }
 
@@ -215,9 +215,7 @@ func indexLevel(table *types.Table, level int) [][]IndexDMLPair {
 					pairs = append(pairs, fields2Pair(table, newList))
 				}
 			}
-			for _, field := range list {
-				delete(fieldSet, field)
-			}
+			fieldSet = make(map[string]bool)
 		}
 		allLevelPairs = append(allLevelPairs, pairs)
 		allLevelFieldLists = append(allLevelFieldLists, fieldLists)
@@ -235,7 +233,7 @@ func randMax(allPairs []IndexDMLPair, max int) []IndexDMLPair {
 		pairMap[pair] = true
 	}
 
-	ret := allPairs[:0]
+	ret := make([]IndexDMLPair, 0, max)
 	for pair := range pairMap {
 		ret = append(ret, pair)
 	}
