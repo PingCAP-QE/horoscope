@@ -168,11 +168,11 @@ func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Met
 }
 
 func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable []*executor.CardinalityInfo, join []*executor.CardinalityInfo, err error) {
-	ei, err := h.exec.ExplainAnalyze(query)
+	rows, _, err := h.exec.ExplainAnalyze(query)
 	if err != nil {
 		return nil, nil, fmt.Errorf("explain analyze error: %v", err)
 	}
-	cis := executor.CollectEstAndActRows(ei)
+	cis := executor.CollectEstAndActRows(executor.NewExplainAnalyzeInfo(rows))
 	for _, ci := range cis {
 		if ci.Op == "Selection" {
 			baseTable = append(baseTable, ci)
