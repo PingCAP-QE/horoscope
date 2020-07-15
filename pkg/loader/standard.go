@@ -22,7 +22,6 @@ import (
 
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
-	_ "github.com/pingcap/tidb/types/parser_driver"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -43,9 +42,6 @@ type queryInfo struct {
 }
 
 func (g *StandardLoader) Next() (string, ast.StmtNode) {
-	if g.index == 0 {
-		g.init()
-	}
 	if g.index >= len(g.queries) {
 		return "", nil
 	}
@@ -53,31 +49,19 @@ func (g *StandardLoader) Next() (string, ast.StmtNode) {
 	g.index++
 	query := g.queries[queryId]
 
-	stmt, warns, err := g.parser.Parse(query.sql, "", "")
+	stmt, err := g.parser.ParseOneStmt(query.sql, "", "")
 
-	if err != nil || len(warns) > 0 || len(stmt) != 1 {
-		if err != nil {
-			log.WithFields(log.Fields{
-				"query": query,
-				"err":   err.Error(),
-			}).Warn("Fails to parse, ignore this query")
-		}
-
-		if len(warns) > 0 {
-			for _, warn := range warns {
-				log.WithFields(log.Fields{
-					"query":   query,
-					"warning": warn.Error(),
-				}).Warn("Warns in parse, ignore this query")
-			}
-		}
-
+	if err != nil {
+		log.WithFields(log.Fields{
+			"query": query,
+			"err":   err.Error(),
+		}).Warn("Fails to parse, ignore this query")
 		return g.Next()
 	}
-	return query.name, stmt[0]
+	return query.name, stmt
 }
 
-func (g *StandardLoader) init() error {
+func (g *StandardLoader) load() error {
 	dir := path.Join(g.workloadDir, QueryDir)
 	err := filepath.Walk(dir,
 		func(path string, info os.FileInfo, err error) error {
@@ -102,6 +86,8 @@ func (g *StandardLoader) init() error {
 	return nil
 }
 
-func NewStandardLoader(workloadDir string) QueryLoader {
-	return &StandardLoader{workloadDir: workloadDir, parser: parser.New()}
+func LoadDir(workloadDir string) (QueryLoader, error) {
+	newLoader := &StandardLoader{workloadDir: workloadDir, parser: parser.New()}
+	err := newLoader.load()
+	return newLoader, err
 }

@@ -25,7 +25,6 @@ import (
 )
 
 var (
-	horo                   *horoscope.Horoscope
 	needPrepare            bool
 	enableCollectCardError bool
 	needVerify             bool
@@ -72,7 +71,12 @@ func bench(*cli.Context) error {
 			return err
 		}
 	}
-	horo = horoscope.NewHoroscope(Exec, loader.NewStandardLoader(workloadDir), enableCollectCardError)
+	newLoader, err := loader.LoadDir(workloadDir)
+	if err != nil {
+		return err
+	}
+
+	horo := horoscope.NewHoroscope(Exec, newLoader, enableCollectCardError)
 	var collection horoscope.BenchCollection
 	for {
 		benches, err := horo.Next(round, needVerify)
