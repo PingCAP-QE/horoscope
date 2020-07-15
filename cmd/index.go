@@ -73,8 +73,16 @@ func newScheme(*cli.Context) error {
 	for _, table := range Database.BaseTables {
 		for _, column := range table.Columns {
 			if column.Key == "" {
-				add += fmt.Sprintf("ALTER TABLE `%s` ADD INDEX (`%s`);\n", table.Name, column.Name)
-				clean += fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`;\n", table.Name, column.Name)
+				keyName := KeyName([]string{column.Name.String()})
+				add += fmt.Sprintf("ALTER TABLE `%s` ADD INDEX `%s` (`%s`);\n", table.Name, keyName, column.Name)
+				clean += fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`;\n", table.Name, keyName)
+			}
+			for _, another := range table.Columns {
+				if column != another {
+					keyName := KeyName([]string{column.Name.String(), another.Name.String()})
+					add += fmt.Sprintf("ALTER TABLE `%s` ADD INDEX `%s` (`%s`, `%s`);\n", table.Name, keyName, column.Name, another.Name)
+					clean += fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`;\n", table.Name, keyName)
+				}
 			}
 		}
 	}
@@ -131,7 +139,7 @@ func apply(path string) error {
 			log.WithField("query", query).Info("Executing...")
 			_, err = Exec.Exec(query)
 			if err != nil {
-				return err
+				log.WithField("query", query).Warnf("fails to execute: %s", err.Error())
 			}
 		}
 	}
@@ -141,4 +149,9 @@ func apply(path string) error {
 func pathExist(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil || !os.IsNotExist(err)
+}
+
+func KeyName(fields []string) string {
+	segments := append(fields, "ID")
+	return strings.Join(segments, "_")
 }
