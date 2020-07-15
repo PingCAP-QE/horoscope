@@ -27,7 +27,7 @@ import (
 var explainCommand = &cli.Command{
 	Name:    "explain",
 	Aliases: []string{"e"},
-	Usage:   "Explain a query",
+	Usage:   "Explain analyze a query",
 	Flags: []cli.Flag{
 		&cli.Int64Flag{
 			Name:        "plan",
@@ -59,7 +59,7 @@ var explainCommand = &cli.Command{
 			return err
 		}
 
-		rows, warnings, err := Exec.Explain(plan)
+		rows, warnings, err := Exec.ExplainAnalyze(plan)
 		if err != nil {
 			return err
 		}

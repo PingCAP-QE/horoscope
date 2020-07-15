@@ -48,8 +48,8 @@ func (c *Cardinalitor) Test() (map[string]map[string]*Metrics, error) {
 		panic("implement me!")
 	}
 	ctx := context.TODO()
-	if *c.Timeout != time.Duration(0) {
-		ctx, _ = context.WithTimeout(context.TODO(), *c.Timeout)
+	if c.Timeout != time.Duration(0) {
+		ctx, _ = context.WithTimeout(context.TODO(), c.Timeout)
 	}
 	for tableName, columns := range c.TableColumns {
 		if _, e := result[tableName]; !e {
@@ -100,11 +100,11 @@ func (c *Cardinalitor) testEMQ(ctx context.Context, tableName, columnName string
 		}
 		for _, row := range rows.Data {
 			value := row[0]
-			ei, err := c.exec.ExplainAnalyze(fmt.Sprintf("SELECT %s FROM %s WHERE %s = '%s'", columnName, tableName, columnName, value))
+			rows, _, err := c.exec.ExplainAnalyze(fmt.Sprintf("SELECT %s FROM %s WHERE %s = '%s'", columnName, tableName, columnName, value))
 			if err != nil {
 				return nil, err
 			}
-			cis := executor.CollectEstAndActRows(ei)
+			cis := executor.CollectEstAndActRows(executor.NewExplainAnalyzeInfo(rows))
 			qError := cis[0].QError
 			if qError != math.Inf(1) {
 				metrics.Values = append(metrics.Values, qError)
@@ -158,14 +158,14 @@ func (c *Cardinalitor) testREG(ctx context.Context, tableName, columnName string
 				return
 			}
 			ub := rows.Data[0][0]
-			ei, err := c.exec.ExplainAnalyze(fmt.Sprintf("SELECT %s FROM %s WHERE %s >= '%s' and %s < '%s'",
+			rows, _, err := c.exec.ExplainAnalyze(fmt.Sprintf("SELECT %s FROM %s WHERE %s >= '%s' and %s < '%s'",
 				columnName, tableName,
 				columnName, lb,
 				columnName, ub))
 			if err != nil {
 				return nil, err
 			}
-			cis := executor.CollectEstAndActRows(ei)
+			cis := executor.CollectEstAndActRows(executor.NewExplainAnalyzeInfo(rows))
 			qError := cis[0].QError
 			if qError != math.Inf(1) {
 				metrics.Values = append(metrics.Values, qError)
