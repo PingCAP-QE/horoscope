@@ -121,14 +121,6 @@ func (e *MySQLExecutor) ExplainAnalyze(query string) (rows Rows, warnings []erro
 	return
 }
 
-//func (e *MySQLExecutor) ExplainAnalyze(query string) (ei *ExplainAnalyzeInfo, err error) {
-//	rows, err := e.Query(fmt.Sprintf("EXPLAIN ANALYZE %s", query))
-//	if err != nil {
-//		return nil, fmt.Errorf("explain analyze error: %v", err)
-//	}
-//	return NewExplainAnalyzeInfo(rows), nil
-//}
-
 func (e *MySQLExecutor) queryWarnings() (warnings []error, err error) {
 	data, err := e.db.Query("SHOW WARNINGS;")
 	if err != nil {
