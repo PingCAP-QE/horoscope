@@ -171,8 +171,9 @@ func pathExist(path string) bool {
 	return err == nil || !os.IsNotExist(err)
 }
 
-func keyName(fields []string) string {
-	segments := append(fields, "ID")
+func keyName(table *types.Table, fields []string) string {
+	segments := append([]string{strings.ToUpper(table.Name.String())}, fields...)
+	segments = append(segments, "ID")
 	return strings.Join(segments, "_")
 }
 
@@ -214,6 +215,9 @@ func indexLevel(table *types.Table, level int) [][]IndexDMLPair {
 					pairs = append(pairs, fields2Pair(table, newList))
 				}
 			}
+			for _, field := range list {
+				delete(fieldSet, field)
+			}
 		}
 		allLevelPairs = append(allLevelPairs, pairs)
 		allLevelFieldLists = append(allLevelFieldLists, fieldLists)
@@ -239,7 +243,7 @@ func randMax(allPairs []IndexDMLPair, max int) []IndexDMLPair {
 }
 
 func fields2Pair(table *types.Table, fields []string) IndexDMLPair {
-	key := keyName(fields)
+	key := keyName(table, fields)
 	fieldList := strings.Join(fields, ",")
 	return IndexDMLPair{
 		add:    fmt.Sprintf("ALTER TABLE `%s` ADD INDEX `%s` (%s);\n", table.Name, key, fieldList),
