@@ -57,6 +57,12 @@ var (
 				Value:       100,
 				Destination: &genOptions.Limit,
 			},
+			&cli.BoolFlag{
+				Name:        "rand-logic-op",
+				Aliases:     []string{"r"},
+				Usage:       "enable random logic operator",
+				Destination: &genOptions.RandLogicOp,
+			},
 		},
 		Action: func(context *cli.Context) error {
 			gen := generator.NewGenerator(Database, Exec)
