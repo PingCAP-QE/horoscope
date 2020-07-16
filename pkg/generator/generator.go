@@ -28,8 +28,9 @@ type (
 	}
 
 	Options struct {
-		MaxTables int
-		Limit     int
+		MaxTables   int
+		Limit       int
+		RandLogicOp bool
 	}
 )
 
@@ -41,21 +42,31 @@ func NewGenerator(db *types.Database, exec executor.Executor) *Generator {
 }
 
 func (g *Generator) SelectStmt(options Options) (string, error) {
-	tables, columns := g.RdTablesAndColumns(options.MaxTables)
+	tables, columnsList := g.RdTablesAndColumns(options.MaxTables)
 	selectStmt := fmt.Sprintf("SELECT * FROM %s", strings.Join(tables, ","))
-	if len(columns) > 0 {
-		whereExpr := ""
-		for _, column := range columns {
-			if whereExpr != "" {
-				whereExpr += fmt.Sprintf(" %s ", RdLogicOp())
+	if len(columnsList) > 0 {
+		exprGroup := make([]string, 0)
+		for _, columns := range columnsList {
+			if len(columns) > 0 {
+				expr := ""
+				for _, column := range columns {
+					if expr != "" {
+						logicOp := "AND"
+						if options.RandLogicOp {
+							logicOp = RdLogicOp()
+						}
+						expr += fmt.Sprintf(" %s ", logicOp)
+					}
+					value, err := g.RdValue(column)
+					if err != nil {
+						return "", err
+					}
+					expr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), value)
+				}
+				exprGroup = append(exprGroup, expr)
 			}
-			value, err := g.RdValue(column)
-			if err != nil {
-				return "", err
-			}
-			whereExpr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), value)
 		}
-		selectStmt += fmt.Sprintf(" WHERE %s", whereExpr)
+		selectStmt += fmt.Sprintf(" WHERE (%s)", strings.Join(exprGroup, ") AND ("))
 	}
 
 	if options.Limit != 0 {
@@ -65,11 +76,12 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 	return selectStmt, nil
 }
 
-func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, []*types.Column) {
+func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*types.Column) {
 	tableNums := Rd(maxTables) + 1
-	columns := make([]*types.Column, 0)
+	columnsList := make([][]*types.Column, 0)
 	tables := make([]string, 0, tableNums)
 	for tableName, table := range g.db.BaseTables {
+		columns := make([]*types.Column, 0)
 		tableNums--
 		if tableNums < 0 {
 			break
@@ -80,8 +92,9 @@ func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, []*types.Column
 				columns = append(columns, column)
 			}
 		}
+		columnsList = append(columnsList, columns)
 	}
-	return tables, columns
+	return tables, columnsList
 }
 
 func (g *Generator) RdValue(column *types.Column) (value string, err error) {
