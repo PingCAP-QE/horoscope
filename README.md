@@ -37,26 +37,41 @@ horoscope is an optimizer inspector for DBMS.
 ## Usage
 
 ```
-NAME:
-   horoscope - An optimizer inspector for DBMS
-
 USAGE:
    horo [global options] command [command options] [arguments...]
 
 COMMANDS:
-   bench       bench the optimizer
+   bench       Bench the optimizer
+   gen, g      Generate a dynamic bench scheme
    query, q    Execute a query
-   explain, e  Explain a query
+   hint, H     Explain hint of a query
+   explain, e  Explain analyze a query
    info, i     Show database information
+   index       Add indexes for tables
+   card        test the cardinality estimations
    help, h     Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --dsn DSN, -d DSN          DSN of target db (default: "root:@tcp(localhost:4000)/test?charset=utf8")
-   --round ROUND, -r ROUND    Execution ROUND of each query (default: 1)
-   --json, -j                 Format log with json formatter (default: false)
-   --file FILE, -f FILE       FILE to store log
-   --verbose LEVEL, -v LEVEL  LEVEL of log: trace|debug|info|warn|error|fatal|panic (default: "info")
+   --dsn DSN, -d DSN          set DSN of target db (default: "root:@tcp(localhost:4000)/test?charset=utf8")
+   --round ROUND, -r ROUND    execution ROUND of each query (default: 1)
+   --json, -j                 format log with json formatter (default: false)
+   --file FILE, -f FILE       set FILE to store log
+   --verbose LEVEL, -v LEVEL  set LEVEL of log: trace|debug|info|warn|error|fatal|panic (default: "info")
    --help, -h                 show help (default: false)
+```
+
+### Bench effectiveness
+
+```sh
+bin/horo -r 4 bench -p -c -w benchmark/tpch
+```
+
+### Bench cardinality estimation
+
+For example, measures the EMQ(and exact match queries) error on `customer.C_NAME` for total 100 seconds.
+
+```sh
+bin/horo card -columns 'customer.C_NAME' -type emq -timeout 100s
 ```
 
 ## Summary report
