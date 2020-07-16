@@ -68,7 +68,7 @@ bin/horo -r 4 bench -p -c -w benchmark/tpch
 
 ### Bench cardinality estimation
 
-For example, measures the EMQ(and exact match queries) error on `customer.C_NAME` for total 100 seconds.
+For example, measures the EMQ(exact match queries) row cnt error on `customer.C_NAME` for total 100 seconds.
 
 ```sh
 bin/horo card -columns 'customer.C_NAME' -type emq -timeout 100s
