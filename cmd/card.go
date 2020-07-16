@@ -29,7 +29,7 @@ import (
 var (
 	cardinalitor *horoscope.Cardinalitor
 	columns      string
-	typ          int
+	typ          string
 	timeout      time.Duration
 	cardCommand  = &cli.Command{
 		Name:   "card",
@@ -42,11 +42,11 @@ var (
 				Destination: &columns,
 				Required:    true,
 			},
-			&cli.IntFlag{
+			&cli.StringFlag{
 				Name:        "type",
 				Aliases:     []string{"t"},
-				Usage:       "0:exact match queries(A = x); 1:range(lb <= A < ub)",
-				Value:       0,
+				Usage:       "emq means exact match queries(A = x); rge means range(lb <= A < ub)",
+				Value:       "emq",
 				Destination: &typ,
 			},
 			&cli.DurationFlag{
@@ -62,7 +62,7 @@ var (
 func testCard(*cli.Context) error {
 	tableColumns := make(map[string][]string)
 	for _, pair := range strings.Split(columns, ",") {
-		values := strings.Split(pair, ":")
+		values := strings.Split(pair, ".")
 		table := values[0]
 		column := values[1]
 		if _, e := tableColumns[table]; !e {

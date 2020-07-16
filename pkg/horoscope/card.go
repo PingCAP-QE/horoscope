@@ -12,12 +12,12 @@ import (
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
-type CardinalityQueryType int
+type CardinalityQueryType string
 
 const (
-	TypeEMQ CardinalityQueryType = iota
-	TypeRGE
-	TypeDCT
+	TypeEMQ CardinalityQueryType = "emq"
+	TypeRGE CardinalityQueryType = "rge"
+	TypeDCT CardinalityQueryType = "dct"
 )
 
 type Cardinalitor struct {
@@ -45,7 +45,7 @@ func (c *Cardinalitor) Test() (map[string]map[string]*Metrics, error) {
 	case TypeRGE:
 		fun = c.testREG
 	default:
-		panic("implement me!")
+		panic(fmt.Sprintf("illegal type %s", c.Type))
 	}
 	ctx := context.TODO()
 	if c.Timeout != time.Duration(0) {
