@@ -146,11 +146,11 @@ func RdBinaryOperator(ops []string) string {
 }
 
 func RdComparisionOp() string {
-	return RdBinaryOperator([]string{"=", "<", ">", "<=", ">=", "<>"})
+	return RdBinaryOperator([]string{"<=", ">="})
 }
 
 func RdLogicOp() string {
-	return RdBinaryOperator([]string{"AND", "OR", "XOR"})
+	return RdBinaryOperator([]string{"AND", "OR"})
 }
 
 func FormatValue(tp *types.FieldType, value string) string {
