@@ -20,7 +20,8 @@ import (
 )
 
 type (
-	Row  []string
+	Row [][]byte
+
 	Rows struct {
 		Columns Row
 		Data    []Row
@@ -30,6 +31,11 @@ type (
 func NewRows(rows *sql.Rows) (ret Rows, err error) {
 	data := make([]Row, 0)
 	columns, err := rows.Columns()
+	var colms Row
+	for _, column := range columns {
+		colms = append(colms, []byte(column))
+	}
+
 	if err != nil {
 		return
 	}
@@ -45,11 +51,11 @@ func NewRows(rows *sql.Rows) (ret Rows, err error) {
 		}
 
 		for _, data := range dataSet {
-			row = append(row, string(*data.(*[]byte)))
+			row = append(row, *data.(*[]byte))
 		}
 		data = append(data, row)
 	}
-	ret = Rows{Data: data, Columns: columns}
+	ret = Rows{Data: data, Columns: colms}
 	return
 }
 
@@ -66,7 +72,7 @@ func (r Row) Equal(other Row) bool {
 		return false
 	}
 	for i, column := range r {
-		if column != other[i] {
+		if len(column) != len(other[i]) || string(column) != string(other[i]) {
 			return false
 		}
 	}
@@ -93,7 +99,7 @@ func (r Rows) Equal(other Comparable) bool {
 	}
 
 	for i, column := range r.Columns {
-		if column != otherRows.Columns[i] {
+		if len(column) != len(otherRows.Columns[i]) && string(column) != string(otherRows.Columns[i]) {
 			return false
 		}
 	}

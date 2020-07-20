@@ -40,17 +40,17 @@ func (c Column) FullType() string {
 }
 
 func LoadColumn(table *Table, row executor.Row) (column *Column, err error) {
-	tp, err := NewParser().ParseFieldType(row[1])
+	tp, err := NewParser().ParseFieldType(string(row[1]))
 	if err != nil {
 		return
 	}
 
 	column = &Column{
 		Table: table,
-		Name:  model.NewCIStr(row[0]),
+		Name:  model.NewCIStr(string(row[0])),
 		Type:  tp,
-		Null:  ifNull(row[2]),
-		Key:   row[3],
+		Null:  ifNull(string(row[2])),
+		Key:   string(row[3]),
 	}
 	return
 }
