@@ -323,8 +323,8 @@ func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.T
 }
 
 func IsSubOptimal(defPlan *Bench, plan *Bench) bool {
-	const alpha, thresholdPct, thresholdDiff = 0.05, 0.9, 300
-	if plan.Cost.Mean >= thresholdPct*defPlan.Cost.Mean || (defPlan.Cost.Mean-plan.Cost.Mean) < thresholdDiff {
+	const alpha, thresholdPct = 0.05, 0.9
+	if plan.Cost.Mean >= thresholdPct*defPlan.Cost.Mean {
 		return false
 	}
 	defaultPlanCost, currentPlanCost := defPlan.Cost, plan.Cost
