@@ -107,8 +107,9 @@ func (g *Generator) RdValue(column *types.Column) (value string, err error) {
 	return
 }
 
-func (g *Generator) RdValues(table string, columns []*types.Column) (values executor.Row, err error) {
+func (g *Generator) RdValues(table string, columns []*types.Column) (values []string, err error) {
 	columnNames := make([]string, 0, len(columns))
+	values = make([]string, 0, len(columns))
 	for _, column := range columns {
 		columnNames = append(columnNames, column.Name.String())
 	}
@@ -117,6 +118,8 @@ func (g *Generator) RdValues(table string, columns []*types.Column) (values exec
 	if err != nil {
 		return
 	}
-	values = rows.Data[0]
+	for i, value := range rows.Data[0] {
+		values = append(values, FormatValue(columns[i].Type, value))
+	}
 	return
 }
