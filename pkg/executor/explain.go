@@ -26,16 +26,16 @@ type CardinalityInfo struct {
 }
 
 func NewExplainAnalyzeInfo(data Rows) *ExplainAnalyzeInfo {
-	if !data.Columns[0:7].Equal([]string{"id", "estRows", "actRows", "task", "access object", "execution info", "operator info"}) {
+	if !data.Columns[0:7].Equal([][]byte{[]byte("id"), []byte("estRows"), []byte("actRows"), []byte("task"), []byte("access object"), []byte("execution info"), []byte("operator info")}) {
 		return nil
 	}
 	var ei, lastInfo *ExplainAnalyzeInfo
 	lastLevel := 0
 	for index, row := range data.Data {
-		op, level := parseAnalyzeID(*row[0])
-		estRows := parseFloatColumn(*row[1])
-		actRows := parseFloatColumn(*row[2])
-		opInfo := *row[6]
+		op, level := parseAnalyzeID(string(row[0]))
+		estRows := parseFloatColumn(string(row[1]))
+		actRows := parseFloatColumn(string(row[2]))
+		opInfo := string(row[6])
 		cur := &ExplainAnalyzeInfo{
 			Op:      op,
 			EstRows: estRows,

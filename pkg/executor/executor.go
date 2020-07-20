@@ -158,7 +158,7 @@ func (e *MySQLExecutor) getHints(query string) (hints Hints, err error) {
 		err = errors.New(fmt.Sprintf("Unexpected hints: %#v", rows))
 		return
 	}
-	hints = NewHints(*rows.Data[0][0])
+	hints = NewHints(string(rows.Data[0][0]))
 
 	log.WithFields(log.Fields{
 		"query": query,

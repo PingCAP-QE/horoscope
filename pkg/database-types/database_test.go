@@ -23,13 +23,13 @@ import (
 
 var (
 	database = executor.Rows{
-		Columns: executor.NullableRow{"DATABASE()"},
-		Data:    []executor.NullableRow{{"test"}},
+		Columns: executor.Row{"DATABASE()"},
+		Data:    []executor.Row{{"test"}},
 	}
 
 	tables = executor.Rows{
-		Columns: executor.NullableRow{"tables_in_test", "table_type"},
-		Data: []executor.NullableRow{
+		Columns: executor.Row{"tables_in_test", "table_type"},
+		Data: []executor.Row{
 			{"customer", "BASE TABLE"},
 			{"lineitem", "BASE TABLE"},
 			{"nation", "BASE TABLE"},
@@ -41,8 +41,8 @@ var (
 		},
 	}
 	lineitem = executor.Rows{
-		Columns: executor.NullableRow{"Field", "Type", "Null", "Key", "Default", "Extra"},
-		Data: []executor.NullableRow{
+		Columns: executor.Row{"Field", "Type", "Null", "Key", "Default", "Extra"},
+		Data: []executor.Row{
 			{"L_ORDERKEY", "bigint(20)", "NO", "PRI", "NULL", ""},
 			{"L_PARTKEY", "bigint(20)", "NO", "", "NULL", ""},
 			{"L_SUPPKEY", "bigint(20)", "NO", "MUL", "NULL", ""},

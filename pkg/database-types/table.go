@@ -22,7 +22,7 @@ import (
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
-var descriptionColumns = executor.Row{"Field", "Type", "Null", "Key", "Default", "Extra"}
+var descriptionColumns = executor.Row{[]byte("Field"), []byte("Type"), []byte("Null"), []byte("Key"), []byte("Default"), []byte("Extra")}
 
 // Table defines database table
 type Table struct {

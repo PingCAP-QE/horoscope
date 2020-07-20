@@ -20,24 +20,28 @@ import (
 )
 
 type (
-	NullableRow []*string
-	Row         []string
+	Row [][]byte
 
 	Rows struct {
 		Columns Row
-		Data    []NullableRow
+		Data    []Row
 	}
 )
 
 func NewRows(rows *sql.Rows) (ret Rows, err error) {
-	data := make([]NullableRow, 0)
+	data := make([]Row, 0)
 	columns, err := rows.Columns()
+	var colms Row
+	for _, column := range columns {
+		colms = append(colms, []byte(column))
+	}
+
 	if err != nil {
 		return
 	}
 	for rows.Next() {
 		dataSet := make([]interface{}, 0, len(columns))
-		row := make(NullableRow, 0, len(columns))
+		row := make(Row, 0, len(columns))
 		for range columns {
 			dataSet = append(dataSet, &[]byte{})
 		}
@@ -47,16 +51,11 @@ func NewRows(rows *sql.Rows) (ret Rows, err error) {
 		}
 
 		for _, data := range dataSet {
-			if data.(*[]byte) == nil {
-				row = append(row, nil)
-			} else {
-				tmp := string(*data.(*[]byte))
-				row = append(row, &tmp)
-			}
+			row = append(row, *data.(*[]byte))
 		}
 		data = append(data, row)
 	}
-	ret = Rows{Data: data, Columns: columns}
+	ret = Rows{Data: data, Columns: colms}
 	return
 }
 
@@ -68,32 +67,12 @@ func (r Rows) ColumnNums() int {
 	return len(r.Columns)
 }
 
-func (r NullableRow) Equal(other NullableRow) bool {
-	if len(r) != len(other) {
-		return false
-	}
-	for i, column := range r {
-		if column != other[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func (r NullableRow) ToTableRow() table.Row {
-	tableRow := make(table.Row, 0, len(r))
-	for _, column := range r {
-		tableRow = append(tableRow, column)
-	}
-	return tableRow
-}
-
 func (r Row) Equal(other Row) bool {
 	if len(r) != len(other) {
 		return false
 	}
 	for i, column := range r {
-		if column != other[i] {
+		if len(column) != len(other[i]) || string(column) != string(other[i]) {
 			return false
 		}
 	}
@@ -120,7 +99,7 @@ func (r Rows) Equal(other Comparable) bool {
 	}
 
 	for i, column := range r.Columns {
-		if column != otherRows.Columns[i] {
+		if len(column) != len(otherRows.Columns[i]) && string(column) != string(otherRows.Columns[i]) {
 			return false
 		}
 	}

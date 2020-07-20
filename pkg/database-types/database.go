@@ -36,11 +36,11 @@ func LoadDatabase(rawName, tables executor.Rows) (db *Database, err error) {
 		return
 	}
 	db = &Database{
-		Name:       *rawName.Data[0][0],
+		Name:       string(rawName.Data[0][0]),
 		BaseTables: make(map[string]*Table),
 	}
 	for _, row := range tables.Data {
-		db.BaseTables[*row[0]] = PrepareTable(*row[0])
+		db.BaseTables[string(row[0])] = PrepareTable(string(row[0]))
 	}
 	return
 }

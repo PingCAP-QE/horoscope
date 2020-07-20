@@ -82,7 +82,7 @@ func (c *Cardinalitor) testEMQ(ctx context.Context, tableName, columnName string
 	if err != nil {
 		return nil, fmt.Errorf("fetch count(distinct %s) from %s occurred an error: %v", columnName, tableName, err)
 	}
-	count, err := strconv.ParseInt(*rows.Data[0][0], 10, 64)
+	count, err := strconv.ParseInt(string(rows.Data[0][0]), 10, 64)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (c *Cardinalitor) testREG(ctx context.Context, tableName, columnName string
 	if err != nil {
 		return nil, fmt.Errorf("fetch count(distinct %s) from %s occurred an error: %v", columnName, tableName, err)
 	}
-	count, err := strconv.ParseInt(*rows.Data[0][0], 10, 64)
+	count, err := strconv.ParseInt(string(rows.Data[0][0]), 10, 64)
 	if err != nil {
 		return nil, err
 	}

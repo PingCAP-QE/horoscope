@@ -23,13 +23,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Warning(row NullableRow) (warning error, err error) {
+func Warning(row Row) (warning error, err error) {
 	if len(row) != 3 {
 		err = errors.New("warning table should have 3 columns")
 		return
 	}
 
-	code, err := strconv.Atoi(*row[1])
+	code, err := strconv.Atoi(string(row[1]))
 	if err != nil {
 		return
 	}
@@ -39,7 +39,7 @@ func Warning(row NullableRow) (warning error, err error) {
 		"msg":  row[2],
 	}).Debug("sql warning")
 
-	warning = &mysql.MySQLError{Number: uint16(code), Message: *row[2]}
+	warning = &mysql.MySQLError{Number: uint16(code), Message: string(row[2])}
 	return
 }
 
