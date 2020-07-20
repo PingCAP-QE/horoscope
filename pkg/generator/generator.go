@@ -28,9 +28,9 @@ type (
 	}
 
 	Options struct {
-		MaxTables   int
-		Limit       int
-		RandLogicOp bool
+		MaxTables          int
+		Limit              int
+		DisableRandLogicOp bool
 	}
 )
 
@@ -56,12 +56,12 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 				for j, column := range columns {
 					if expr != "" {
 						logicOp := "AND"
-						if options.RandLogicOp {
+						if !options.DisableRandLogicOp {
 							logicOp = RdLogicOp()
 						}
 						expr += fmt.Sprintf(" %s ", logicOp)
 					}
-					expr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), values[j])
+					expr += fmt.Sprintf("(%s <=> %s OR %s %s %s)", column.String(), values[j], column.String(), RdComparisionOp(), values[j])
 				}
 				exprGroup = append(exprGroup, expr)
 			}

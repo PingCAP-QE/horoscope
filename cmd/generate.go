@@ -58,10 +58,10 @@ var (
 				Destination: &genOptions.Limit,
 			},
 			&cli.BoolFlag{
-				Name:        "rand-logic-op",
-				Aliases:     []string{"r"},
-				Usage:       "enable random logic operator",
-				Destination: &genOptions.RandLogicOp,
+				Name:        "disable-logic-random",
+				Aliases:     []string{"d"},
+				Usage:       "disable random logic operator",
+				Destination: &genOptions.DisableRandLogicOp,
 			},
 		},
 		Action: func(context *cli.Context) error {
