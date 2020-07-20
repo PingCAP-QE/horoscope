@@ -61,7 +61,7 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 						}
 						expr += fmt.Sprintf(" %s ", logicOp)
 					}
-					expr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), values[j])
+					expr += fmt.Sprintf("(%s <=> %s OR %s %s %s)", column.String(), values[j], column.String(), RdComparisionOp(), values[j])
 				}
 				exprGroup = append(exprGroup, expr)
 			}
