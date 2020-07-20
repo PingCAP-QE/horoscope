@@ -150,7 +150,7 @@ func RdComparisionOp() string {
 }
 
 func RdLogicOp() string {
-	return RdBinaryOperator([]string{"AND", "OR", "XOR"})
+	return RdBinaryOperator([]string{"AND", "OR"})
 }
 
 func FormatValue(tp *types.FieldType, value string) string {
