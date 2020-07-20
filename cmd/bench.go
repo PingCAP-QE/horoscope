@@ -16,6 +16,8 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -91,6 +93,10 @@ func bench(*cli.Context) error {
 				log.WithFields(log.Fields{
 					"err": err.Error(),
 				}).Warn("Occurs an error when benching one query")
+			}
+			if strings.Contains(err.Error(), "connection refused") ||
+				strings.Contains(err.Error(), "invalid connection") {
+				time.Sleep(2 * time.Minute)
 			}
 			continue
 		}
