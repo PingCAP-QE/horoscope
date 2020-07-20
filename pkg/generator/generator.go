@@ -46,10 +46,14 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 	selectStmt := fmt.Sprintf("SELECT * FROM %s", strings.Join(tables, ","))
 	if len(columnsList) > 0 {
 		exprGroup := make([]string, 0)
-		for _, columns := range columnsList {
+		for i, columns := range columnsList {
 			if len(columns) > 0 {
+				values, err := g.RdValues(tables[i], columns)
+				if err != nil {
+					return "", err
+				}
 				expr := ""
-				for _, column := range columns {
+				for j, column := range columns {
 					if expr != "" {
 						logicOp := "AND"
 						if options.RandLogicOp {
@@ -57,11 +61,7 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 						}
 						expr += fmt.Sprintf(" %s ", logicOp)
 					}
-					value, err := g.RdValue(column)
-					if err != nil {
-						return "", err
-					}
-					expr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), value)
+					expr += fmt.Sprintf("%s %s %s", column.String(), RdComparisionOp(), values[j])
 				}
 				exprGroup = append(exprGroup, expr)
 			}
@@ -104,5 +104,19 @@ func (g *Generator) RdValue(column *types.Column) (value string, err error) {
 		return
 	}
 	value = FormatValue(column.Type, rows.Data[0][0])
+	return
+}
+
+func (g *Generator) RdValues(table string, columns []*types.Column) (values executor.Row, err error) {
+	columnNames := make([]string, 0, len(columns))
+	for _, column := range columns {
+		columnNames = append(columnNames, column.Name.String())
+	}
+	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY RAND() LIMIT 1", strings.Join(columnNames, ","), table)
+	rows, err := g.exec.Query(query)
+	if err != nil {
+		return
+	}
+	values = rows.Data[0]
 	return
 }
