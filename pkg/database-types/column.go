@@ -39,18 +39,18 @@ func (c Column) FullType() string {
 	return c.Type.String()
 }
 
-func LoadColumn(table *Table, row executor.Row) (column *Column, err error) {
-	tp, err := NewParser().ParseFieldType(row[1])
+func LoadColumn(table *Table, row executor.NullableRow) (column *Column, err error) {
+	tp, err := NewParser().ParseFieldType(*row[1])
 	if err != nil {
 		return
 	}
 
 	column = &Column{
 		Table: table,
-		Name:  model.NewCIStr(row[0]),
+		Name:  model.NewCIStr(*row[0]),
 		Type:  tp,
-		Null:  ifNull(row[2]),
-		Key:   row[3],
+		Null:  ifNull(*row[2]),
+		Key:   *row[3],
 	}
 	return
 }

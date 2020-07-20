@@ -153,11 +153,14 @@ func RdLogicOp() string {
 	return RdBinaryOperator([]string{"AND", "OR"})
 }
 
-func FormatValue(tp *types.FieldType, value string) string {
+func FormatValue(tp *types.FieldType, value *string) string {
+	if value == nil {
+		return "NULL"
+	}
 	switch tp.EvalType() {
 	case types.ETInt, types.ETReal, types.ETDecimal:
-		return value
+		return *value
 	default:
-		return FormatStringLiteral(value)
+		return FormatStringLiteral(*value)
 	}
 }

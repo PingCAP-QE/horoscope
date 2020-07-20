@@ -9,7 +9,7 @@ import (
 func TestNewExplainAnalyzeInfo(t *testing.T) {
 	rows := Rows{
 		Columns: []string{"id", "estRows", "actRows", "access object", "operator info"},
-		Data: []Row{
+		Data: []NullableRow{
 			[]string{"HashAgg_30", "1.00", "1", "", "funcs:min(imdb.char_name.name)->Column#43, funcs:min(imdb.title.title)->Column#44"},
 			[]string{"└─HashJoin_43", "74878.55", "405", "", "inner join, equal:[eq(imdb.movie_companies.company_type_id, imdb.company_type.id)]"},
 			[]string{"  ├─TableReader_274(Build)", "4.00", "4", "", "data:TableFullScan_273"},

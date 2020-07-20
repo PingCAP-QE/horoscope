@@ -32,10 +32,10 @@ func NewExplainAnalyzeInfo(data Rows) *ExplainAnalyzeInfo {
 	var ei, lastInfo *ExplainAnalyzeInfo
 	lastLevel := 0
 	for index, row := range data.Data {
-		op, level := parseAnalyzeID(row[0])
-		estRows := parseFloatColumn(row[1])
-		actRows := parseFloatColumn(row[2])
-		opInfo := row[6]
+		op, level := parseAnalyzeID(*row[0])
+		estRows := parseFloatColumn(*row[1])
+		actRows := parseFloatColumn(*row[2])
+		opInfo := *row[6]
 		cur := &ExplainAnalyzeInfo{
 			Op:      op,
 			EstRows: estRows,

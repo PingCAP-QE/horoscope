@@ -20,22 +20,24 @@ import (
 )
 
 type (
-	Row  []string
+	NullableRow []*string
+	Row         []string
+
 	Rows struct {
 		Columns Row
-		Data    []Row
+		Data    []NullableRow
 	}
 )
 
 func NewRows(rows *sql.Rows) (ret Rows, err error) {
-	data := make([]Row, 0)
+	data := make([]NullableRow, 0)
 	columns, err := rows.Columns()
 	if err != nil {
 		return
 	}
 	for rows.Next() {
 		dataSet := make([]interface{}, 0, len(columns))
-		row := make(Row, 0, len(columns))
+		row := make(NullableRow, 0, len(columns))
 		for range columns {
 			dataSet = append(dataSet, &[]byte{})
 		}
@@ -45,7 +47,12 @@ func NewRows(rows *sql.Rows) (ret Rows, err error) {
 		}
 
 		for _, data := range dataSet {
-			row = append(row, string(*data.(*[]byte)))
+			if data.(*[]byte) == nil {
+				row = append(row, nil)
+			} else {
+				tmp := string(*data.(*[]byte))
+				row = append(row, &tmp)
+			}
 		}
 		data = append(data, row)
 	}
@@ -59,6 +66,26 @@ func (r Rows) RowCount() int {
 
 func (r Rows) ColumnNums() int {
 	return len(r.Columns)
+}
+
+func (r NullableRow) Equal(other NullableRow) bool {
+	if len(r) != len(other) {
+		return false
+	}
+	for i, column := range r {
+		if column != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (r NullableRow) ToTableRow() table.Row {
+	tableRow := make(table.Row, 0, len(r))
+	for _, column := range r {
+		tableRow = append(tableRow, column)
+	}
+	return tableRow
 }
 
 func (r Row) Equal(other Row) bool {
