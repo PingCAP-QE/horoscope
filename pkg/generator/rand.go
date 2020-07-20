@@ -146,7 +146,7 @@ func RdBinaryOperator(ops []string) string {
 }
 
 func RdComparisionOp() string {
-	return RdBinaryOperator([]string{"=", "<", ">", "<=", ">=", "<>"})
+	return RdBinaryOperator([]string{"<=", ">="})
 }
 
 func RdLogicOp() string {
