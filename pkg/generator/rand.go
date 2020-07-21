@@ -21,8 +21,23 @@ import (
 	"github.com/pingcap/tidb/types"
 )
 
+var (
+	logicOperators = []string{"OR"}
+)
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
+}
+
+// Set the weight of "AND" operator
+func SetAndOpWeight(weight int) {
+	if weight > 0 {
+		logicOperators = make([]string, 0, weight+1)
+		logicOperators = append(logicOperators, "OR")
+		for ; weight > 0; weight-- {
+			logicOperators = append(logicOperators, "AND")
+		}
+	}
 }
 
 // Rd same to rand.Intn
@@ -150,7 +165,7 @@ func RdComparisionOp() string {
 }
 
 func RdLogicOp() string {
-	return RdBinaryOperator([]string{"AND", "OR"})
+	return RdBinaryOperator(logicOperators)
 }
 
 func FormatValue(tp *types.FieldType, value []byte) string {
