@@ -26,6 +26,7 @@ import (
 
 var (
 	planNums       int
+	andOpWeight    int
 	genOptions     generator.Options
 	outputWorkload = "benchmark/dyn"
 	prepareFile    = path.Join(outputWorkload, "prepare.sql")
@@ -57,12 +58,17 @@ var (
 				Value:       100,
 				Destination: &genOptions.Limit,
 			},
-			&cli.BoolFlag{
-				Name:        "disable-logic-random",
-				Aliases:     []string{"d"},
-				Usage:       "disable random logic operator",
-				Destination: &genOptions.DisableRandLogicOp,
+			&cli.IntFlag{
+				Name:        "weight",
+				Aliases:     []string{"w"},
+				Usage:       "weight of 'AND' operator in random",
+				Value:       3,
+				Destination: &andOpWeight,
 			},
+		},
+		Before: func(*cli.Context) error {
+			generator.SetAndOpWeight(andOpWeight)
+			return nil
 		},
 		Action: func(context *cli.Context) error {
 			gen := generator.NewGenerator(Database, Exec)
