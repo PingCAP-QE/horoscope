@@ -16,6 +16,7 @@ package generator
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/pingcap/tidb/types"
@@ -98,7 +99,7 @@ func RdDuration() time.Duration {
 }
 
 func FormatStringLiteral(value string) string {
-	return fmt.Sprintf("'%s'", value)
+	return fmt.Sprintf("'%s'", strings.Replace(value, "'", "\\'", -1))
 }
 
 func FormatTime(t time.Time) string {
