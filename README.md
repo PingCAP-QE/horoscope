@@ -89,10 +89,10 @@ There will generate a summary report after `bench` sub-command is finished.
 * `ID`: query id
 * `#PLAN SPACE`: the plan space size of a query
 * `DEFAULT EXECUTION TIME`: the execution time of default plan, giving in the format of "Mean ±Diff", "Mean" is the mean value of `round` rounds, and "Diff" is the lower/upper bound of the mean value
-* `BEST PLAN EXECUTION TIME`: the execution time of default plan
+* `BEST PLAN EXECUTION TIME`: the execution time of the best plan
 * `EFFECTIVENESS`: the percent of the execution time of the default plan better than others on plan space
     * We use Pd to represent the default plan generated for the query, Pi as one of plan on plan space
-    * If execution time(Pi) < 0.9 * execution time(Pd) and execution time(Pd) - execution time(Pi) >= 300ms, Pi is defined as a better plan
+    * If execution time(Pi) < 0.9 * execution time(Pd), Pi is a better plan
 * `BETTER OPTIMAL PLANS`: gives the better plan, each item is giving in the format of "nth_plan id(execution time / default execution time)"
 * `ESTROW Q-ERROR`: Base table row cnt estimation q-error for each query
 * `QUERY`: the query

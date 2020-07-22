@@ -21,6 +21,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/pingcap/parser/mysql"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
@@ -191,6 +192,11 @@ func indexLevel(table *types.Table, level int) [][]IndexDMLPair {
 	pairs := make([]IndexDMLPair, 0, len(table.Columns))
 	fieldLists := make([][]string, 0, len(table.Columns))
 	for _, column := range table.Columns {
+		// We ignore BLOB and TEXT columns
+		if column.Type.Tp == mysql.TypeBlob || column.Type.Tp == mysql.TypeLongBlob ||
+			column.Type.Tp == mysql.TypeMediumBlob || column.Type.Tp == mysql.TypeTinyBlob {
+			continue
+		}
 		fields := []string{column.Name.String()}
 		fieldLists = append(fieldLists, fields)
 		if column.Key == "" {
@@ -209,6 +215,10 @@ func indexLevel(table *types.Table, level int) [][]IndexDMLPair {
 				fieldSet[field] = true
 			}
 			for _, column := range table.Columns {
+				if column.Type.Tp == mysql.TypeBlob || column.Type.Tp == mysql.TypeLongBlob ||
+					column.Type.Tp == mysql.TypeMediumBlob || column.Type.Tp == mysql.TypeTinyBlob {
+					continue
+				}
 				if !fieldSet[column.Name.String()] {
 					newList := append(list, column.Name.String())
 					fieldLists = append(fieldLists, newList)

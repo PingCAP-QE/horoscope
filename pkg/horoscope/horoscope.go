@@ -84,6 +84,7 @@ func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) 
 		"query id": qID,
 		"query":    benches.DefaultPlan.SQL,
 		"cost":     fmt.Sprintf("%vms", cost.Values),
+		"hints":    benches.DefaultPlan.Hints,
 	}).Info("complete origin query")
 
 	rowsSet := make([][]executor.Comparable, 0)
@@ -123,6 +124,7 @@ func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) 
 			"query id": qID,
 			"query":    plan.SQL,
 			"cost":     fmt.Sprintf("%vms", cost.Values),
+			"hints":    plan.Hints,
 		}).Infof("complete execution plan%d", plan.Plan)
 	}
 	if verify {
