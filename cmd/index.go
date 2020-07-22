@@ -16,12 +16,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/pingcap/parser/mysql"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 
+	"github.com/pingcap/parser/mysql"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
