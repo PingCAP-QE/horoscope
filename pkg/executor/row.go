@@ -82,7 +82,7 @@ func (r Row) Equal(other Row) bool {
 func (r Row) ToTableRow() table.Row {
 	tableRow := make(table.Row, 0, len(r))
 	for _, column := range r {
-		tableRow = append(tableRow, column)
+		tableRow = append(tableRow, string(column))
 	}
 	return tableRow
 }
