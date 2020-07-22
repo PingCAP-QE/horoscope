@@ -8,13 +8,13 @@ import (
 
 func TestNewExplainAnalyzeInfo(t *testing.T) {
 	rows := Rows{
-		Columns: []string{"id", "estRows", "actRows", "access object", "operator info"},
+		Columns: [][]byte{[]byte("id"), []byte("estRows"), []byte("actRows"), []byte("access object"), []byte("operator info")},
 		Data: []Row{
-			[]string{"HashAgg_30", "1.00", "1", "", "funcs:min(imdb.char_name.name)->Column#43, funcs:min(imdb.title.title)->Column#44"},
-			[]string{"└─HashJoin_43", "74878.55", "405", "", "inner join, equal:[eq(imdb.movie_companies.company_type_id, imdb.company_type.id)]"},
-			[]string{"  ├─TableReader_274(Build)", "4.00", "4", "", "data:TableFullScan_273"},
-			[]string{"  │ └─TableFullScan_273", "4.00", "4", "table:ct", "keep order:false"},
-			[]string{"  └─HashJoin_70(Probe)", "74878.55", "405", "table:ct", "inner join, equal:[eq(imdb.movie_companies.company_id, imdb.company_name.id)]"},
+			[][]byte{[]byte("HashAgg_30"), []byte("1.00"), []byte("1"), []byte(""), []byte("funcs:min(imdb.char_name.name)->Column#43, funcs:min(imdb.title.title)->Column#44")},
+			[][]byte{[]byte("└─HashJoin_43"), []byte("74878.55"), []byte("405"), []byte(""), []byte("inner join, equal:[eq(imdb.movie_companies.company_type_id, imdb.company_type.id)]")},
+			[][]byte{[]byte("  ├─TableReader_274(Build)"), []byte("4.00"), []byte("4"), []byte(""), []byte("data:TableFullScan_273")},
+			[][]byte{[]byte("  │ └─TableFullScan_273"), []byte("4.00"), []byte("4"), []byte("table:ct"), []byte("keep order:false")},
+			[][]byte{[]byte("  └─HashJoin_70(Probe)"), []byte("74878.55"), []byte("405"), []byte("table:ct"), []byte("inner join, equal:[eq(imdb.movie_companies.company_id, imdb.company_name.id)]")},
 		},
 	}
 	got := NewExplainAnalyzeInfo(rows)
