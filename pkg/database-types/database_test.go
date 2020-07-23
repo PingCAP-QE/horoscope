@@ -16,6 +16,7 @@ package types
 import (
 	"testing"
 
+	_ "github.com/pingcap/tidb/types/parser_driver"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
@@ -23,32 +24,32 @@ import (
 
 var (
 	database = executor.Rows{
-		Columns: executor.Row{"DATABASE()"},
-		Data:    []executor.Row{{"test"}},
+		Columns: executor.Row{[]byte("DATABASE()")},
+		Data:    []executor.Row{{[]byte("test")}},
 	}
 
 	tables = executor.Rows{
-		Columns: executor.Row{"tables_in_test", "table_type"},
+		Columns: executor.Row{[]byte("tables_in_test"), []byte("table_type")},
 		Data: []executor.Row{
-			{"customer", "BASE TABLE"},
-			{"lineitem", "BASE TABLE"},
-			{"nation", "BASE TABLE"},
-			{"orders", "BASE TABLE"},
-			{"part", "BASE TABLE"},
-			{"partsupp", "BASE TABLE"},
-			{"region", "BASE TABLE"},
-			{"supplier", "BASE TABLE"},
+			{[]byte("customer"), []byte("BASE TABLE")},
+			{[]byte("lineitem"), []byte("BASE TABLE")},
+			{[]byte("nation"), []byte("BASE TABLE")},
+			{[]byte("orders"), []byte("BASE TABLE")},
+			{[]byte("part"), []byte("BASE TABLE")},
+			{[]byte("partsupp"), []byte("BASE TABLE")},
+			{[]byte("region"), []byte("BASE TABLE")},
+			{[]byte("supplier"), []byte("BASE TABLE")},
 		},
 	}
 	lineitem = executor.Rows{
-		Columns: executor.Row{"Field", "Type", "Null", "Key", "Default", "Extra"},
+		Columns: executor.Row{[]byte("Field"), []byte("Type"), []byte("Null"), []byte("Key"), []byte("Default"), []byte("Extra")},
 		Data: []executor.Row{
-			{"L_ORDERKEY", "bigint(20)", "NO", "PRI", "NULL", ""},
-			{"L_PARTKEY", "bigint(20)", "NO", "", "NULL", ""},
-			{"L_SUPPKEY", "bigint(20)", "NO", "MUL", "NULL", ""},
-			{"L_LINENUMBER", "bigint(20)", "NO", "PRI", "NULL", ""},
-			{"L_QUANTITY", "decimal(15,2)", "NO", "", "NULL", ""},
-			{"L_SHIPDATE", "date", "NO", "", "NULL", ""},
+			{[]byte("L_ORDERKEY"), []byte("bigint(20)"), []byte("NO"), []byte("PRI"), []byte("NULL"), []byte("")},
+			{[]byte("L_PARTKEY"), []byte("bigint(20)"), []byte("NO"), []byte(""), []byte("NULL"), []byte("")},
+			{[]byte("L_SUPPKEY"), []byte("bigint(20)"), []byte("NO"), []byte("MUL"), []byte("NULL"), []byte("")},
+			{[]byte("L_LINENUMBER"), []byte("bigint(20)"), []byte("NO"), []byte("PRI"), []byte("NULL"), []byte("")},
+			{[]byte("L_QUANTITY"), []byte("decimal(15,2)"), []byte("NO"), []byte(""), []byte("NULL"), []byte("")},
+			{[]byte("L_SHIPDATE"), []byte("date"), []byte("NO"), []byte(""), []byte("NULL"), []byte("")},
 		},
 	}
 )
