@@ -8,13 +8,13 @@ import (
 
 func TestNewExplainAnalyzeInfo(t *testing.T) {
 	rows := Rows{
-		Columns: []string{"id", "estRows", "actRows", "access object", "operator info"},
+		Columns: [][]byte{[]byte("id"), []byte("estRows"), []byte("actRows"), []byte("task"), []byte("access object"), []byte("execution info"), []byte("operator info")},
 		Data: []Row{
-			[]string{"HashAgg_30", "1.00", "1", "", "funcs:min(imdb.char_name.name)->Column#43, funcs:min(imdb.title.title)->Column#44"},
-			[]string{"└─HashJoin_43", "74878.55", "405", "", "inner join, equal:[eq(imdb.movie_companies.company_type_id, imdb.company_type.id)]"},
-			[]string{"  ├─TableReader_274(Build)", "4.00", "4", "", "data:TableFullScan_273"},
-			[]string{"  │ └─TableFullScan_273", "4.00", "4", "table:ct", "keep order:false"},
-			[]string{"  └─HashJoin_70(Probe)", "74878.55", "405", "table:ct", "inner join, equal:[eq(imdb.movie_companies.company_id, imdb.company_name.id)]"},
+			[][]byte{[]byte("HashAgg_30"), []byte("1.00"), []byte("1"), []byte("root"), []byte(""), []byte("time:5.143960214s, loops:2, PartialConcurrency:5, FinalConcurrency:5"), []byte("funcs:min(imdb.char_name.name)->Column#43, funcs:min(imdb.title.title)->Column#44")},
+			[][]byte{[]byte("└─HashJoin_45"), []byte("76450.66"), []byte("405"), []byte("root"), []byte(""), []byte("time:5.143791993s, loops:6, Concurrency:5, probe collision:0, build:32.444µs"), []byte("inner join, equal:[eq(imdb.movie_companies.company_type_id, imdb.company_type.id)]")},
+			[][]byte{[]byte("  ├─TableReader_308(Build)"), []byte("4.00"), []byte("4"), []byte("root"), []byte(""), []byte("time:20.912442ms, loops:2, rpc num: 1, rpc time:20.926766ms, proc keys:4"), []byte("data:TableFullScan_307")},
+			[][]byte{[]byte("  │ └─TableFullScan_307"), []byte("4.00"), []byte("4"), []byte("cop[tikv]"), []byte("table:ct"), []byte("time:0s, loops:1"), []byte("keep order:false")},
+			[][]byte{[]byte("  └─HashJoin_74(Probe)"), []byte("76450.66"), []byte("405"), []byte("root"), []byte(""), []byte("time:5.143556164s, loops:6, Concurrency:5, probe collision:0, build:850.482µs"), []byte("")},
 		},
 	}
 	got := NewExplainAnalyzeInfo(rows)
