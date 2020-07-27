@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -99,8 +100,13 @@ func (c *Cardinalitor) testEMQ(ctx context.Context, tableName, columnName string
 			return nil, err
 		}
 		for _, row := range rows.Data {
-			value := row[0]
-			rows, _, err := c.exec.ExplainAnalyze(fmt.Sprintf("SELECT %s FROM %s WHERE %s = '%s'", columnName, tableName, columnName, value))
+			value, op := row[0], "IS"
+			stringValue, bareValue := "NULL", "NULL"
+			if value != nil {
+				bareValue, op = strings.Replace(string(value), "'", "\\'", -1), "="
+				stringValue = fmt.Sprintf("'%s'", bareValue)
+			}
+			rows, _, err := c.exec.ExplainAnalyze(fmt.Sprintf("SELECT %s FROM %s WHERE %s %s %s", columnName, tableName, columnName, op, stringValue))
 			if err != nil {
 				return nil, err
 			}
@@ -113,7 +119,7 @@ func (c *Cardinalitor) testEMQ(ctx context.Context, tableName, columnName string
 			log.WithFields(log.Fields{
 				"table":   tableName,
 				"column":  columnName,
-				"value":   value,
+				"value":   bareValue,
 				"q-error": qError,
 			}).Info("q-error result")
 		}
@@ -123,7 +129,7 @@ func (c *Cardinalitor) testEMQ(ctx context.Context, tableName, columnName string
 
 func (c *Cardinalitor) testREG(ctx context.Context, tableName, columnName string) (metrics *Metrics, err error) {
 	metrics = &Metrics{}
-	rows, err := c.exec.Query(fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s", columnName, tableName))
+	rows, err := c.exec.Query(fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s IS NOT NULL", columnName, tableName, columnName))
 	if err != nil {
 		return nil, fmt.Errorf("fetch count(distinct %s) from %s occurred an error: %v", columnName, tableName, err)
 	}
@@ -132,32 +138,32 @@ func (c *Cardinalitor) testREG(ctx context.Context, tableName, columnName string
 		return nil, err
 	}
 	for lbIndex := 0; lbIndex < int(count)-1; lbIndex++ {
-		rows, err = c.exec.Query(fmt.Sprintf("SELECT DISTINCT %s FROM %s ORDER BY %s LIMIT %d, 1",
-			columnName, tableName, columnName, lbIndex,
+		rows, err = c.exec.Query(fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s IS NOT NULL ORDER BY %s LIMIT %d, 1",
+			columnName, tableName, columnName, columnName, lbIndex,
 		))
 		if err != nil {
 			return nil, err
 		}
-		if len(rows.Data) != 1 {
+		if len(rows.Data) == 0 {
 			return
 		}
-		lb := rows.Data[0][0]
+		lb := string(rows.Data[0][0])
 		for upIndex := lbIndex + 1; upIndex < int(count); upIndex++ {
 			select {
 			case <-ctx.Done():
 				return
 			default:
 			}
-			rows, err = c.exec.Query(fmt.Sprintf("SELECT DISTINCT %s FROM %s ORDER BY %s LIMIT %d, 1",
-				columnName, tableName, columnName, upIndex,
+			rows, err = c.exec.Query(fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s IS NOT NULL ORDER BY %s LIMIT %d, 1",
+				columnName, tableName, columnName, columnName, upIndex,
 			))
 			if err != nil {
 				return nil, err
 			}
-			if len(rows.Data) != 1 {
-				return
+			if len(rows.Data) == 0 {
+				break
 			}
-			ub := rows.Data[0][0]
+			ub := string(rows.Data[0][0])
 			rows, _, err := c.exec.ExplainAnalyze(fmt.Sprintf("SELECT %s FROM %s WHERE %s >= '%s' and %s < '%s'",
 				columnName, tableName,
 				columnName, lb,
