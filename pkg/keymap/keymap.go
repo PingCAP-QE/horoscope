@@ -31,11 +31,25 @@ type (
 	}
 )
 
-var keyRegex *regexp.Regexp
+var (
+	keyRegex           *regexp.Regexp
+	singleCommentRegex *regexp.Regexp
+	commentsRegex      *regexp.Regexp
+)
 
 func init() {
 	var err error
 	keyRegex, err = regexp.Compile(`(\w+)\.(\w+)`)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	singleCommentRegex, err = regexp.Compile(`//.*`)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	commentsRegex, err = regexp.Compile(`/\*(.|\r|\n)*\*/`)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -72,6 +86,9 @@ func parseLine(line string) (keyMap KeyMap, err error) {
 }
 
 func Parse(contents string) (maps []KeyMap, err error) {
+	contents = commentsRegex.ReplaceAllString(contents, "")
+	contents = singleCommentRegex.ReplaceAllString(contents, "")
+
 	lines := strings.Split(contents, ";")
 	maps = make([]KeyMap, 0, len(lines))
 	for _, line := range lines {
