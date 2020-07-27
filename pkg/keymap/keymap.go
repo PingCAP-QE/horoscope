@@ -96,3 +96,7 @@ func ParseFile(filename string) (maps []KeyMap, err error) {
 	maps, err = Parse(string(data))
 	return
 }
+
+func (key *Key) String() string {
+	return fmt.Sprintf("%s.%s", key.Table, key.Column)
+}

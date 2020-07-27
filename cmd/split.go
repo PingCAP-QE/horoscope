@@ -13,41 +13,71 @@
 
 package main
 
-import "github.com/urfave/cli/v2"
+import (
+	"fmt"
+	"path"
+
+	"github.com/urfave/cli/v2"
+
+	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/keymap"
+)
 
 var (
-	splitMode    string
-	slices       uint
-	keymapFile   string
+	groups = cli.NewStringSlice()
+	evens  = cli.NewStringSlice()
+
+	keymapPath = path.Join(dynWorkload, ".keymap")
+	slicesDir  = path.Join(dynWorkload, "slices")
+
 	splitCommand = &cli.Command{
 		Name:    "split",
 		Aliases: []string{"s"},
 		Usage:   "Split data into several slices",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "mode",
-				Aliases:     []string{"m"},
-				Usage:       "split mode, `<even|group>`",
-				Value:       "even",
-				Destination: &splitMode,
+			&cli.StringSliceFlag{
+				Name:        "group",
+				Aliases:     []string{"g"},
+				Usage:       "group split, group by `<table>.<column>`",
+				Destination: groups,
 			},
-			&cli.UintFlag{
-				Name:        "slices",
-				Aliases:     []string{"s"},
-				Usage:       "the `numbers` of slices in evenly split",
-				Value:       100,
-				Destination: &slices,
-			},
-			&cli.StringFlag{
-				Name:        "keymap",
-				Aliases:     []string{"k"},
-				Usage:       "the `path` of keymap file",
-				Value:       ".keymap",
-				Destination: &keymapFile,
+			&cli.StringSliceFlag{
+				Name:        "even",
+				Aliases:     []string{"e"},
+				Usage:       "evenly split by `<table>(<nums>)`",
+				Destination: evens,
 			},
 		},
 		Action: func(context *cli.Context) error {
+			keymaps, err := keymap.ParseFile(keymapPath)
+			if err != nil {
+				return err
+			}
+			if err = checkKeymaps(Database, keymaps); err != nil {
+				return err
+			}
 			return nil
 		},
 	}
 )
+
+func checkKeymaps(db *types.Database, maps []keymap.KeyMap) error {
+	for _, kp := range maps {
+		if err := checkKey(db, kp.PrimaryKey); err != nil {
+			return nil
+		}
+		for _, key := range kp.ForeignKeys {
+			if err := checkKey(db, key); err != nil {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func checkKey(db *types.Database, key *keymap.Key) error {
+	if table := db.BaseTables[key.Table]; table == nil || !table.ColumnsSet[key.Column] {
+		return fmt.Errorf("key `%s` not exists", key)
+	}
+	return nil
+}

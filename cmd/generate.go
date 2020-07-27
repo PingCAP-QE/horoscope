@@ -25,12 +25,11 @@ import (
 )
 
 var (
-	planNums       int
-	andOpWeight    int
-	genOptions     generator.Options
-	outputWorkload = "benchmark/dyn"
-	prepareFile    = path.Join(outputWorkload, "prepare.sql")
-	queriesDir     = path.Join(outputWorkload, "queries")
+	planNums    int
+	andOpWeight int
+	genOptions  generator.Options
+	prepareFile = path.Join(dynWorkload, "prepare.sql")
+	queriesDir  = path.Join(dynWorkload, "queries")
 
 	genCommand = &cli.Command{
 		Name:    "gen",
