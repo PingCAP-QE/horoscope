@@ -14,12 +14,10 @@
 package main
 
 import (
-	"fmt"
 	"path"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/chaos-mesh/horoscope/pkg/database-types"
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
 )
 
@@ -76,24 +74,3 @@ var (
 		},
 	}
 )
-
-func checkKeymaps(db *types.Database, maps []keymap.KeyMap) error {
-	for _, kp := range maps {
-		if err := checkKey(db, kp.PrimaryKey); err != nil {
-			return nil
-		}
-		for _, key := range kp.ForeignKeys {
-			if err := checkKey(db, key); err != nil {
-				return nil
-			}
-		}
-	}
-	return nil
-}
-
-func checkKey(db *types.Database, key *keymap.Key) error {
-	if table := db.BaseTables[key.Table]; table == nil || !table.ColumnsSet[key.Column] {
-		return fmt.Errorf("key `%s` not exists", key)
-	}
-	return nil
-}
