@@ -15,6 +15,8 @@ package generator
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"strings"
 
 	"github.com/chaos-mesh/horoscope/pkg/database-types"
@@ -64,6 +66,12 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 		selectStmt += fmt.Sprintf(" WHERE (%s)", strings.Join(exprGroup, ") AND ("))
 	}
 
+	// control the max count of order by clause
+	orderBy := g.RdOrderBy(columnsList, 2)
+
+	if len(orderBy) != 0 {
+		selectStmt += fmt.Sprintf(" ORDER BY %s", strings.Join(orderBy, ", "))
+	}
 	if options.Limit != 0 {
 		selectStmt += fmt.Sprintf(" LIMIT %d", options.Limit)
 	}
@@ -90,6 +98,20 @@ func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*types.Colu
 		columnsList = append(columnsList, columns)
 	}
 	return tables, columnsList
+}
+
+func (g *Generator) RdOrderBy(tableColumns [][]*types.Column, count uint) []string {
+	var cols []string
+	for _, columns := range tableColumns {
+		for _, column := range columns {
+			cols = append(cols, column.String())
+		}
+	}
+	rand.Shuffle(len(cols), func(i, j int) {
+		cols[i], cols[j] = cols[j], cols[i]
+	})
+	elemLen := rand.Intn(int(math.Min(float64(count), float64(len(cols)))))
+	return cols[:elemLen]
 }
 
 func (g *Generator) RdValue(column *types.Column) (value string, err error) {
