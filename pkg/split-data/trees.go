@@ -24,7 +24,6 @@ type (
 	Trees map[string]*Node
 
 	Node struct {
-		parent     *Link
 		primaryKey *keymap.Key
 		table      *types.Table
 		children   []*Link
@@ -36,7 +35,7 @@ type (
 	}
 )
 
-func BuildTrees(db *types.Database, maps []keymap.KeyMap) (trees Trees, err error) {
+func BuildTrees(db *types.Database, maps []keymap.KeyMap, keepTable string) (trees Trees, err error) {
 	if err = checkKeymaps(db, maps); err != nil {
 		return
 	}
@@ -61,19 +60,13 @@ func BuildTrees(db *types.Database, maps []keymap.KeyMap) (trees Trees, err erro
 		trees[primaryKey.Table].primaryKey = primaryKey
 
 		for _, foreignKey := range kp.ForeignKeys {
-			if trees[foreignKey.Table].parent != nil {
-				continue
+			if child, ok := trees[foreignKey.Table]; ok && foreignKey.Table != keepTable {
+				tree.children = append(tree.children, &Link{
+					node:       child,
+					foreignKey: foreignKey,
+				})
+				delete(trees, foreignKey.Table)
 			}
-
-			trees[foreignKey.Table].parent = &Link{
-				node:       tree,
-				foreignKey: foreignKey,
-			}
-
-			tree.children = append(tree.children, &Link{
-				node:       trees[foreignKey.Table],
-				foreignKey: foreignKey,
-			})
 		}
 	}
 

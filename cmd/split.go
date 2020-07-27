@@ -14,6 +14,7 @@
 package main
 
 import (
+	split_data "github.com/chaos-mesh/horoscope/pkg/split-data"
 	"path"
 
 	"github.com/urfave/cli/v2"
@@ -23,7 +24,6 @@ import (
 
 var (
 	group  string
-	evens  = cli.NewStringSlice()
 	slices uint
 
 	groupKey *keymap.Key
@@ -41,12 +41,6 @@ var (
 				Aliases:     []string{"g"},
 				Usage:       "group split, group by `<table>.<column>`",
 				Destination: &group,
-			},
-			&cli.StringSliceFlag{
-				Name:        "even",
-				Aliases:     []string{"e"},
-				Usage:       "evenly split by `{tables}`",
-				Destination: evens,
 			},
 			&cli.UintFlag{
 				Name:        "slices",
@@ -67,7 +61,14 @@ var (
 			if err != nil {
 				return err
 			}
-			if err = checkKeymaps(Database, keymaps); err != nil {
+
+			var keepTable string
+
+			if groupKey != nil {
+				keepTable = groupKey.Table
+			}
+
+			if _, err := split_data.BuildTrees(Database, keymaps, keepTable); err != nil {
 				return err
 			}
 			return nil
