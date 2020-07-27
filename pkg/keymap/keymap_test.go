@@ -21,8 +21,8 @@ import (
 
 const keyMaps = `
 /*
-主要切分依据是 title.production_year
-*/
+ * 主要切分依据是 title.production_year
+ */
 title.id <=> aka_title.movie_id
 		 <=> cast_info.movie_id
 		 <=> complete_cast.movie_id

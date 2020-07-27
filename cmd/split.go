@@ -24,8 +24,11 @@ import (
 )
 
 var (
-	groups = cli.NewStringSlice()
+	group  string
 	evens  = cli.NewStringSlice()
+	slices uint
+
+	groupKey *keymap.Key
 
 	keymapPath = path.Join(dynWorkload, ".keymap")
 	slicesDir  = path.Join(dynWorkload, "slices")
@@ -35,18 +38,31 @@ var (
 		Aliases: []string{"s"},
 		Usage:   "Split data into several slices",
 		Flags: []cli.Flag{
-			&cli.StringSliceFlag{
+			&cli.StringFlag{
 				Name:        "group",
 				Aliases:     []string{"g"},
 				Usage:       "group split, group by `<table>.<column>`",
-				Destination: groups,
+				Destination: &group,
 			},
 			&cli.StringSliceFlag{
 				Name:        "even",
 				Aliases:     []string{"e"},
-				Usage:       "evenly split by `<table>(<nums>)`",
+				Usage:       "evenly split by `{tables}`",
 				Destination: evens,
 			},
+			&cli.UintFlag{
+				Name:        "slices",
+				Aliases:     []string{"s"},
+				Usage:       "the `numbers` of slices to split, only used when flag --group is not set",
+				Value:       100,
+				Destination: &slices,
+			},
+		},
+		Before: func(*cli.Context) (err error) {
+			if group != "" {
+				groupKey, err = keymap.ParseKey(group)
+			}
+			return
 		},
 		Action: func(context *cli.Context) error {
 			keymaps, err := keymap.ParseFile(keymapPath)
