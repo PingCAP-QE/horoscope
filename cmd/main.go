@@ -99,6 +99,7 @@ func main() {
 			infoCommand,
 			indexCommand,
 			cardCommand,
+			splitCommand,
 		},
 	}
 
