@@ -14,12 +14,12 @@
 package main
 
 import (
-	split_data "github.com/chaos-mesh/horoscope/pkg/split-data"
 	"path"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
+	"github.com/chaos-mesh/horoscope/pkg/split-data"
 )
 
 var (
