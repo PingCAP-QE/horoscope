@@ -18,6 +18,7 @@ import "github.com/urfave/cli/v2"
 var (
 	splitMode    string
 	slices       uint
+	keymapFile   string
 	splitCommand = &cli.Command{
 		Name:    "split",
 		Aliases: []string{"s"},
@@ -36,6 +37,13 @@ var (
 				Usage:       "the `numbers` of slices in evenly split",
 				Value:       100,
 				Destination: &slices,
+			},
+			&cli.StringFlag{
+				Name:        "keymap",
+				Aliases:     []string{"k"},
+				Usage:       "the `path` of keymap file",
+				Value:       ".keymap",
+				Destination: &keymapFile,
 			},
 		},
 		Action: func(context *cli.Context) error {
