@@ -62,7 +62,7 @@ var (
 				return err
 			}
 
-			if _, err := split_data.StartSplit(Exec, Database, keymaps, groupKey); err != nil {
+			if _, err := split_data.StartSplit(Exec, Database, keymaps, groupKey, slices); err != nil {
 				return err
 			}
 			return nil

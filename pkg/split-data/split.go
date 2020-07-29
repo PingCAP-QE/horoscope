@@ -16,6 +16,7 @@ package split_data
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/chaos-mesh/horoscope/pkg/database-types"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
@@ -23,15 +24,18 @@ import (
 )
 
 type Splitor struct {
-	groupKey *keymap.Key
-	tx       *sql.Tx
-	db       *types.Database
-	trees    Maps
+	groupKey    *keymap.Key
+	groupValues [][]byte
+	slices      uint
+	tx          *sql.Tx
+	db          *types.Database
+	trees       Maps
 }
 
-func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key) (splitor Splitor, err error) {
+func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices uint) (splitor Splitor, err error) {
 	splitor.groupKey = groupKey
 	splitor.db = db
+	splitor.slices = slices
 
 	splitor.trees, err = BuildMaps(db, maps, groupKey)
 	if err != nil {
@@ -39,7 +43,52 @@ func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap
 	}
 
 	splitor.tx, err = exec.Transaction(context.Background(), &sql.TxOptions{Isolation: sql.LevelSnapshot})
+	if err != nil {
+		return
+	}
+
+	err = splitor.tryLoadGroupValues()
+
 	return
+}
+
+func (s *Splitor) tryLoadGroupValues() error {
+	if s.groupKey != nil {
+		rawData, err := s.tx.Query(fmt.Sprintf(
+			"select %s from %s group by %s order by %s",
+			s.groupKey.Column,
+			s.groupKey.Table,
+			s.groupKey.Column,
+			s.groupKey.Column),
+		)
+		if err != nil {
+			return err
+		}
+
+		rows, err := executor.NewRows(rawData)
+
+		if err != nil {
+			return err
+		}
+
+		if rows.RowCount() == 0 || rows.ColumnNums() != 1 {
+			return fmt.Errorf("invalid group values: %s", rows.String())
+		}
+
+		s.groupValues = make([][]byte, 0, rows.RowCount())
+		for _, row := range rows.Data {
+			s.groupValues = append(s.groupValues, row[0])
+		}
+	}
+	return nil
+}
+
+func (s *Splitor) Slices() int {
+	slices := int(s.slices)
+	if len(s.groupValues) != 0 {
+		slices = len(s.groupValues)
+	}
+	return slices
 }
 
 func (s *Splitor) EndSplit() error {
