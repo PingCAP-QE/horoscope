@@ -62,13 +62,7 @@ var (
 				return err
 			}
 
-			var keepTable string
-
-			if groupKey != nil {
-				keepTable = groupKey.Table
-			}
-
-			if _, err := split_data.BuildTrees(Database, keymaps, keepTable); err != nil {
+			if _, err := split_data.StartSplit(Exec, Database, keymaps, groupKey); err != nil {
 				return err
 			}
 			return nil

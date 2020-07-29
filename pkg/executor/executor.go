@@ -32,6 +32,7 @@ type (
 		Explain(query string) (Rows, []error, error)
 		ExplainAnalyze(query string) (Rows, []error, error)
 		ExecAndRollback(query string) (Result, error)
+		Transaction(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	}
 
 	MySQLExecutor struct {
@@ -165,4 +166,8 @@ func (e *MySQLExecutor) getHints(query string) (hints Hints, err error) {
 		"hints": hints,
 	}).Debug("hints of query")
 	return
+}
+
+func (e *MySQLExecutor) Transaction(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	return e.db.BeginTx(ctx, opts)
 }
