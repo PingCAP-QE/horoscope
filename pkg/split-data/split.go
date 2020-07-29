@@ -17,25 +17,30 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"strconv"
+
 	"github.com/chaos-mesh/horoscope/pkg/database-types"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
-	"os"
 )
 
 type Splitor struct {
-	groupKey    *keymap.Key
-	groupValues [][]byte
-	slices      uint
-	tx          *sql.Tx
-	db          *types.Database
-	maps        Maps
+	sliceCounter int
+	groupKey     *keymap.Key
+	groupValues  [][]byte
+	slices       int
+	tx           *sql.Tx
+	db           *types.Database
+	maps         Maps
+	sliceSizeMap map[string]int
 }
 
-func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices uint) (splitor Splitor, err error) {
+func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int) (splitor Splitor, err error) {
 	splitor.groupKey = groupKey
 	splitor.db = db
 	splitor.slices = slices
+	splitor.sliceSizeMap = make(map[string]int)
 
 	splitor.maps, err = BuildMaps(db, maps, groupKey)
 	if err != nil {
@@ -47,48 +52,77 @@ func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap
 		return
 	}
 
-	err = splitor.tryLoadGroupValues()
+	if splitor.groupKey != nil {
+		err = splitor.loadGroupValues()
+		if err != nil {
+			return
+		}
+
+		splitor.updateSlices()
+	}
+
+	err = splitor.calculateSliceSize()
 
 	return
 }
 
-func (s *Splitor) tryLoadGroupValues() error {
-	if s.groupKey != nil {
-		rawData, err := s.tx.Query(fmt.Sprintf(
-			"select %s from %s group by %s order by %s",
-			s.groupKey.Column,
-			s.groupKey.Table,
-			s.groupKey.Column,
-			s.groupKey.Column,
-		))
-		if err != nil {
-			return err
-		}
+func (s *Splitor) loadGroupValues() error {
+	rawData, err := s.tx.Query(fmt.Sprintf(
+		"select %s from %s group by %s order by %s",
+		s.groupKey.Column,
+		s.groupKey.Table,
+		s.groupKey.Column,
+		s.groupKey.Column,
+	))
+	if err != nil {
+		return err
+	}
 
-		rows, err := executor.NewRows(rawData)
+	rows, err := executor.NewRows(rawData)
 
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 
-		if rows.RowCount() == 0 || rows.ColumnNums() != 1 {
-			return fmt.Errorf("invalid group values: %s", rows.String())
-		}
+	if rows.RowCount() == 0 || rows.ColumnNums() != 1 {
+		return fmt.Errorf("invalid group values: %s", rows.String())
+	}
 
-		s.groupValues = make([][]byte, 0, rows.RowCount())
-		for _, row := range rows.Data {
-			s.groupValues = append(s.groupValues, row[0])
-		}
+	s.groupValues = make([][]byte, 0, rows.RowCount())
+	for _, row := range rows.Data {
+		s.groupValues = append(s.groupValues, row[0])
 	}
 	return nil
 }
 
-func (s *Splitor) Slices() int {
-	slices := int(s.slices)
-	if len(s.groupValues) != 0 {
-		slices = len(s.groupValues)
+func (s *Splitor) updateSlices() {
+	s.slices = len(s.groupValues)
+}
+
+func (s *Splitor) calculateSliceSize() error {
+	for table := range s.maps {
+		if s.groupKey == nil || s.groupKey.Table != table {
+			raw, err := s.tx.Query(fmt.Sprintf("select count(*) from %s", table))
+			if err != nil {
+				return err
+			}
+
+			rows, err := executor.NewRows(raw)
+			if err != nil {
+				return err
+			}
+
+			count, err := strconv.Atoi(string(rows.Data[0][0]))
+			if err != nil {
+				return err
+			}
+
+			if count >= s.slices {
+				s.sliceSizeMap[table] = count / s.slices
+			}
+		}
 	}
-	return slices
+	return nil
 }
 
 func (s *Splitor) DumpSchema(path string) error {
@@ -113,6 +147,20 @@ func (s *Splitor) DumpSchema(path string) error {
 		}
 	}
 	return nil
+}
+
+// TODO: complete Next
+/// Dump data into path; return id of next slice
+func (s *Splitor) Next(path string) (id int, err error) {
+	defer func() {
+		s.sliceCounter++
+		if s.sliceCounter < s.slices {
+			id = s.sliceCounter
+		} else {
+			id = 0
+		}
+	}()
+	return
 }
 
 func (s *Splitor) EndSplit() error {

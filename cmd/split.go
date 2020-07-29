@@ -63,7 +63,7 @@ var (
 				return err
 			}
 
-			splitor, err := split_data.StartSplit(Exec, Database, keymaps, groupKey, slices)
+			splitor, err := split_data.StartSplit(Exec, Database, keymaps, groupKey, int(slices))
 
 			if err != nil {
 				return err
