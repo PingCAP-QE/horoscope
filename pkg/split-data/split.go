@@ -17,10 +17,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
 	"github.com/chaos-mesh/horoscope/pkg/database-types"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
+	"os"
 )
 
 type Splitor struct {
@@ -89,6 +89,30 @@ func (s *Splitor) Slices() int {
 		slices = len(s.groupValues)
 	}
 	return slices
+}
+
+func (s *Splitor) DumpSchema(path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	for table := range s.db.BaseTables {
+		raw, err := s.tx.Query(fmt.Sprintf("show create table %s", table))
+		if err != nil {
+			return err
+		}
+		rows, err := executor.NewRows(raw)
+		if err != nil {
+			return err
+		}
+
+		_, err = file.WriteString(fmt.Sprintf("\n%s;\n", string(rows.Data[0][1])))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Splitor) EndSplit() error {
