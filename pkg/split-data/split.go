@@ -29,7 +29,7 @@ type Splitor struct {
 	slices      uint
 	tx          *sql.Tx
 	db          *types.Database
-	trees       Maps
+	maps        Maps
 }
 
 func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices uint) (splitor Splitor, err error) {
@@ -37,12 +37,12 @@ func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap
 	splitor.db = db
 	splitor.slices = slices
 
-	splitor.trees, err = BuildMaps(db, maps, groupKey)
+	splitor.maps, err = BuildMaps(db, maps, groupKey)
 	if err != nil {
 		return
 	}
 
-	splitor.tx, err = exec.Transaction(context.Background(), &sql.TxOptions{Isolation: sql.LevelSnapshot})
+	splitor.tx, err = exec.Transaction(context.Background(), nil)
 	if err != nil {
 		return
 	}
@@ -59,8 +59,8 @@ func (s *Splitor) tryLoadGroupValues() error {
 			s.groupKey.Column,
 			s.groupKey.Table,
 			s.groupKey.Column,
-			s.groupKey.Column),
-		)
+			s.groupKey.Column,
+		))
 		if err != nil {
 			return err
 		}

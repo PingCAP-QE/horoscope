@@ -56,15 +56,27 @@ var (
 			}
 			return
 		},
-		Action: func(context *cli.Context) error {
+		Action: func(context *cli.Context) (err error) {
 			keymaps, err := keymap.ParseFile(keymapPath)
 			if err != nil {
 				return err
 			}
 
-			if _, err := split_data.StartSplit(Exec, Database, keymaps, groupKey, slices); err != nil {
+			splitor, err := split_data.StartSplit(Exec, Database, keymaps, groupKey, slices)
+
+			if err != nil {
 				return err
 			}
+
+			defer func() {
+				endErr := splitor.EndSplit()
+				if err == nil {
+					err = endErr
+				}
+			}()
+
+			println(splitor.Slices())
+
 			return nil
 		},
 	}

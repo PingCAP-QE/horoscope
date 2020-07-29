@@ -101,7 +101,6 @@ func BuildMaps(db *types.Database, mapList []keymap.KeyMap, groupKey *keymap.Key
 	}
 
 	maps.autoPrune(mapList, groupKey)
-
 	return
 }
 
@@ -118,7 +117,7 @@ func (m Maps) autoPrune(maps []keymap.KeyMap, groupKey *keymap.Key) {
 func (m Maps) prune(root string) {
 	if rootNode, ok := m[root]; ok {
 		for table := range m {
-			if rootNode.search(table) != nil {
+			if table != rootNode.table.Name.String() && rootNode.search(table) != nil {
 				delete(m, table)
 			}
 		}
