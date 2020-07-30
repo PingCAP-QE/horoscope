@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	types "github.com/chaos-mesh/horoscope/pkg/database-types"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
@@ -165,7 +165,7 @@ func (s *Splitor) Next(path string) (id int, err error) {
 			// group split
 			groupValue := s.groupValues[s.sliceCounter]
 			clause = fmt.Sprintf(
-				"where %s=%s",
+				"where %s<=>%s",
 				s.groupKey.String(),
 				generator.FormatValue(node.table.ColumnsMap[s.groupKey.Column].Type, groupValue),
 			)
