@@ -21,6 +21,8 @@ import (
 	"strconv"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	types "github.com/chaos-mesh/horoscope/pkg/database-types"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
@@ -226,7 +228,9 @@ func (s *Splitor) Next(path string) (id int, err error) {
 		recursivelyWrite = func(node *Node, clause string) error {
 			visitedSet[node] = true
 			deleteList = append([]string{fmt.Sprintf("delete from %s %s", node.table.Name, clause)}, deleteList...)
-			rows, err := s.tx.Query(fmt.Sprintf("select * from %s %s", node.table.Name, clause))
+			selectStmt := fmt.Sprintf("select * from %s %s", node.table.Name, clause)
+			log.Debug(selectStmt)
+			rows, err := s.tx.Query(selectStmt)
 			if err != nil {
 				return err
 			}
@@ -256,6 +260,7 @@ func (s *Splitor) Next(path string) (id int, err error) {
 		}
 
 		for _, deleteStmt := range deleteList {
+			log.Debug(deleteStmt)
 			_, err = s.tx.Exec(deleteStmt)
 			if err != nil {
 				return
