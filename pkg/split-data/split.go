@@ -277,3 +277,7 @@ func (s *Splitor) Next(path string) (id int, err error) {
 func (s *Splitor) EndSplit() error {
 	return s.tx.Rollback()
 }
+
+func (s Splitor) Slices() int {
+	return s.slices
+}
