@@ -140,7 +140,7 @@ func checkKeymaps(db *types.Database, maps []keymap.KeyMap) error {
 }
 
 func checkKey(db *types.Database, key *keymap.Key) error {
-	if table := db.BaseTables[key.Table]; table == nil || !table.ColumnsSet[key.Column] {
+	if table := db.BaseTables[key.Table]; table == nil || table.ColumnsMap[key.Column] == nil {
 		return fmt.Errorf("key `%s` not exists", key)
 	}
 	return nil

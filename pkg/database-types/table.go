@@ -28,14 +28,14 @@ var descriptionColumns = executor.Row{[]byte("Field"), []byte("Type"), []byte("N
 type Table struct {
 	Name       model.CIStr
 	Columns    []*Column
-	ColumnsSet map[string]bool
+	ColumnsMap map[string]*Column
 }
 
 func PrepareTable(name string) *Table {
 	return &Table{
 		Name:       model.NewCIStr(name),
 		Columns:    make([]*Column, 0),
-		ColumnsSet: make(map[string]bool),
+		ColumnsMap: make(map[string]*Column),
 	}
 }
 
@@ -50,7 +50,16 @@ func (t *Table) LoadColumns(data executor.Rows) error {
 		}
 
 		t.Columns = append(t.Columns, column)
-		t.ColumnsSet[column.Name.String()] = true
+		t.ColumnsMap[column.Name.String()] = column
+	}
+	return nil
+}
+
+func (t *Table) PrimaryKey() *Column {
+	for _, column := range t.Columns {
+		if column.Key == "PRI" {
+			return column
+		}
 	}
 	return nil
 }

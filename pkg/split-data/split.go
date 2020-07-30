@@ -19,9 +19,11 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/chaos-mesh/horoscope/pkg/database-types"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
+	"github.com/chaos-mesh/horoscope/pkg/generator"
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
 )
 
@@ -149,9 +151,118 @@ func (s *Splitor) DumpSchema(path string) error {
 	return nil
 }
 
-// TODO: complete Next
 /// Dump data into path; return id of next slice
 func (s *Splitor) Next(path string) (id int, err error) {
+	file, err := os.Create(path)
+	if err != nil {
+		return
+	}
+
+	for table, node := range s.maps {
+		deleteList := make([]string, 0)
+		var clause string
+		if s.groupKey != nil && s.groupKey.Table == table {
+			// group split
+			groupValue := s.groupValues[s.sliceCounter]
+			clause = fmt.Sprintf(
+				"where %s=%s",
+				s.groupKey.String(),
+				generator.FormatValue(node.table.ColumnsMap[s.groupKey.Column].Type, groupValue),
+			)
+		} else if s.sliceSizeMap[table] != 0 {
+			// evenly split
+
+			pk := node.table.PrimaryKey()
+			if pk == nil {
+				err = fmt.Errorf("table %s has no primary key; evenly split fails", table)
+				return
+			}
+
+			clause = fmt.Sprintf(
+				"order by %s limit %d",
+				pk.Name,
+				s.sliceSizeMap[table],
+			)
+		}
+
+		visitedSet := make(map[*Node]bool)
+
+		writeToFile := func(table *types.Table, rows *sql.Rows) error {
+			stream, err := executor.NewRowStream(rows)
+			if err != nil {
+				return err
+			}
+
+			for {
+				var row executor.Row
+				row, err = stream.Next()
+				if err != nil {
+					return err
+				}
+
+				if row == nil {
+					return nil
+				}
+
+				valueList := make([]string, 0, len(row))
+				for i, value := range row {
+					column := table.ColumnsMap[string(stream.Columns[i])]
+					valueList = append(valueList, generator.FormatValue(column.Type, value))
+				}
+
+				insertStmt := fmt.Sprintf(
+					"insert into %s values (%s);\n",
+					table.Name, strings.Join(valueList, ","),
+				)
+
+				_, err := file.WriteString(insertStmt)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		var recursivelyWrite func(node *Node, clause string) error
+		recursivelyWrite = func(node *Node, clause string) error {
+			visitedSet[node] = true
+			deleteList = append([]string{fmt.Sprintf("delete from %s %s", node.table.Name, clause)}, deleteList...)
+			rows, err := s.tx.Query(fmt.Sprintf("select * from %s %s", node.table.Name, clause))
+			if err != nil {
+				return err
+			}
+			err = writeToFile(node.table, rows)
+			if err != nil {
+				return err
+			}
+
+			for _, link := range node.links {
+				if !visitedSet[link.node] {
+					linkClause := fmt.Sprintf(
+						"where %s in (select %s from %s %s)",
+						link.to, link.from, node.table.Name, clause,
+					)
+					err = recursivelyWrite(link.node, linkClause)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}
+
+		err = recursivelyWrite(node, clause)
+		if err != nil {
+			return
+		}
+
+		for _, deleteStmt := range deleteList {
+			_, err = s.tx.Exec(deleteStmt)
+			if err != nil {
+				return
+			}
+		}
+	}
+
 	defer func() {
 		s.sliceCounter++
 		if s.sliceCounter < s.slices {
