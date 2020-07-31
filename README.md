@@ -2,8 +2,6 @@
 
 horoscope is an optimizer inspector for DBMS.
 
-
-
 ## Get Started
 
 1. Run TiDB
@@ -102,3 +100,7 @@ There will generate a summary report after `bench` sub-command is finished.
 We integrate the SQL queries of TPCH, TPCDS, SSB, and JOB benchmarks on the repo, you can use [go-tpc](https://github.com/pingcap/go-tpc) and [tidb-bench](https://github.com/pingcap/tidb-bench) to import the dataset.
 
 For the JOB benchmark, [join-order-benchmark](https://github.com/gregrahn/join-order-benchmark) is helpful.
+
+## Index selection fuzz
+
+Refer to [index selection fuzz](doc/index_selection.md)
