@@ -14,8 +14,6 @@
 package split_data
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"strconv"
@@ -34,7 +32,7 @@ type Splitor struct {
 	groupKey     *keymap.Key
 	groupValues  [][]byte
 	slices       int
-	tx           *sql.Tx
+	exec         executor.Executor
 	db           *types.Database
 	maps         Maps
 	sliceSizeMap map[string]int
@@ -44,14 +42,10 @@ func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap
 	splitor.groupKey = groupKey
 	splitor.db = db
 	splitor.slices = slices
+	splitor.exec = exec
 	splitor.sliceSizeMap = make(map[string]int)
 
 	splitor.maps, err = BuildMaps(db, maps, groupKey)
-	if err != nil {
-		return
-	}
-
-	splitor.tx, err = exec.Transaction(context.Background(), nil)
 	if err != nil {
 		return
 	}
@@ -71,19 +65,13 @@ func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap
 }
 
 func (s *Splitor) loadGroupValues() error {
-	rawData, err := s.tx.Query(fmt.Sprintf(
+	rows, err := s.exec.Query(fmt.Sprintf(
 		"select %s from %s group by %s order by %s",
 		s.groupKey.Column,
 		s.groupKey.Table,
 		s.groupKey.Column,
 		s.groupKey.Column,
 	))
-	if err != nil {
-		return err
-	}
-
-	rows, err := executor.NewRows(rawData)
-
 	if err != nil {
 		return err
 	}
@@ -106,12 +94,7 @@ func (s *Splitor) updateSlices() {
 func (s *Splitor) calculateSliceSize() error {
 	for table := range s.maps {
 		if s.groupKey == nil || s.groupKey.Table != table {
-			raw, err := s.tx.Query(fmt.Sprintf("select count(*) from %s", table))
-			if err != nil {
-				return err
-			}
-
-			rows, err := executor.NewRows(raw)
+			rows, err := s.exec.Query(fmt.Sprintf("select count(*) from %s", table))
 			if err != nil {
 				return err
 			}
@@ -136,11 +119,7 @@ func (s *Splitor) DumpSchema(path string) error {
 	}
 
 	for table := range s.db.BaseTables {
-		raw, err := s.tx.Query(fmt.Sprintf("show create table %s", table))
-		if err != nil {
-			return err
-		}
-		rows, err := executor.NewRows(raw)
+		rows, err := s.exec.Query(fmt.Sprintf("show create table %s", table))
 		if err != nil {
 			return err
 		}
@@ -189,12 +168,7 @@ func (s *Splitor) Next(path string) (id int, err error) {
 
 		visitedSet := make(map[*Node]bool)
 
-		writeToFile := func(table *types.Table, rows *sql.Rows) error {
-			stream, err := executor.NewRowStream(rows)
-			if err != nil {
-				return err
-			}
-
+		writeToFile := func(table *types.Table, stream executor.RowStream) error {
 			for {
 				var row executor.Row
 				row, err = stream.Next()
@@ -230,11 +204,11 @@ func (s *Splitor) Next(path string) (id int, err error) {
 			deleteList = append([]string{fmt.Sprintf("delete from %s %s", node.table.Name, clause)}, deleteList...)
 			selectStmt := fmt.Sprintf("select * from %s %s", node.table.Name, clause)
 			log.Debug(selectStmt)
-			rows, err := s.tx.Query(selectStmt)
+			stream, err := s.exec.QueryStream(selectStmt)
 			if err != nil {
 				return err
 			}
-			err = writeToFile(node.table, rows)
+			err = writeToFile(node.table, stream)
 			if err != nil {
 				return err
 			}
@@ -261,7 +235,7 @@ func (s *Splitor) Next(path string) (id int, err error) {
 
 		for _, deleteStmt := range deleteList {
 			log.Debug(deleteStmt)
-			_, err = s.tx.Exec(deleteStmt)
+			_, err = s.exec.Exec(deleteStmt)
 			if err != nil {
 				return
 			}
@@ -277,10 +251,6 @@ func (s *Splitor) Next(path string) (id int, err error) {
 		}
 	}()
 	return
-}
-
-func (s *Splitor) EndSplit() error {
-	return s.tx.Rollback()
 }
 
 func (s Splitor) Slices() int {

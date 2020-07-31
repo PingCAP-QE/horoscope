@@ -72,13 +72,6 @@ var (
 				return err
 			}
 
-			defer func() {
-				endErr := splitor.EndSplit()
-				if err == nil {
-					err = endErr
-				}
-			}()
-
 			err = splitor.DumpSchema(schemaPath)
 			if err != nil {
 				return err
