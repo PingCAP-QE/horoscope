@@ -160,137 +160,9 @@ func (s *Splitor) Next(path string) (id int, err error) {
 	}
 
 	for table, node := range s.maps {
-		deleteList := make([]string, 0)
-		var clause string
-		if s.groupKey != nil && s.groupKey.Table == table {
-			// group split
-			groupValue := s.groupValues[s.sliceCounter]
-			clause = fmt.Sprintf(
-				"where %s<=>%s",
-				s.groupKey.String(),
-				generator.FormatValue(node.table.ColumnsMap[s.groupKey.Column].Type, groupValue),
-			)
-		} else if s.sliceSizeMap[table] != 0 {
-			// evenly split
-
-			if node.table.PrimaryKey == nil {
-				err = fmt.Errorf("table %s has no primary key; evenly split fails", table)
-				return
-			}
-
-			clause = fmt.Sprintf(
-				"order by %s limit %d",
-				node.table.PrimaryKey.Name,
-				s.sliceSizeMap[table],
-			)
-		}
-
-		visitedSet := make(map[*Node]bool)
-
-		writeToFile := func(table *types.Table, stream executor.RowStream) error {
-			for {
-				var row executor.Row
-				row, err = stream.Next()
-				if err != nil {
-					return err
-				}
-
-				if row == nil {
-					return nil
-				}
-
-				if s.filterMap != nil {
-					if table.PrimaryKey == nil {
-						return fmt.Errorf("table %s has no primary key, cannot be filtered", table.Name)
-					}
-
-					index, ok := stream.ColumnsMap[table.PrimaryKey.Name.String()]
-					if !ok {
-						return fmt.Errorf("table %s has no column %s", table.Name, table.PrimaryKey.Name)
-					}
-
-					value := string(row[index])
-					pk, err := strconv.ParseUint(value, 10, 64)
-					if err != nil {
-						return fmt.Errorf("primary key %s of %s is not a invalid unsigned int, value: %s",
-							table.PrimaryKey.Name, table.Name, value,
-						)
-					}
-
-					// A sparse bit array never returns an error
-					filter := s.filterMap[table.Name.String()]
-					set, _ := filter.GetBit(pk)
-
-					if set {
-						continue
-					}
-
-					_ = filter.SetBit(pk)
-				}
-
-				valueList := make([]string, 0, len(row))
-				for i, value := range row {
-					column := table.ColumnsMap[string(stream.Columns[i])]
-					valueList = append(valueList, generator.FormatValue(column.Type, value))
-				}
-
-				insertStmt := fmt.Sprintf(
-					"insert into %s values (%s);\n",
-					table.Name, strings.Join(valueList, ","),
-				)
-
-				_, err := file.WriteString(insertStmt)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		var recursivelyWrite func(node *Node, clause string) error
-		recursivelyWrite = func(node *Node, clause string) error {
-			visitedSet[node] = true
-			deleteList = append([]string{fmt.Sprintf("delete from %s %s", node.table.Name, clause)}, deleteList...)
-			selectStmt := fmt.Sprintf("select * from %s %s", node.table.Name, clause)
-			log.Debug(selectStmt)
-			stream, err := s.exec.QueryStream(selectStmt)
-			if err != nil {
-				return err
-			}
-			err = writeToFile(node.table, stream)
-			if err != nil {
-				return err
-			}
-
-			for _, link := range node.links {
-				if !visitedSet[link.node] {
-					linkClause := fmt.Sprintf(
-						"where %s in (select %s from %s %s)",
-						link.to, link.from, node.table.Name, clause,
-					)
-					err = recursivelyWrite(link.node, linkClause)
-					if err != nil {
-						return err
-					}
-				}
-			}
-			return nil
-		}
-
-		err = recursivelyWrite(node, clause)
+		err = s.dumpMap(table, node, file)
 		if err != nil {
 			return
-		}
-
-		if s.filterMap == nil {
-			// no filter map, filter by delete
-
-			for _, deleteStmt := range deleteList {
-				log.Debug(deleteStmt)
-				_, err = s.exec.Exec(deleteStmt)
-				if err != nil {
-					return
-				}
-			}
 		}
 	}
 
@@ -305,6 +177,150 @@ func (s *Splitor) Next(path string) (id int, err error) {
 	return
 }
 
-func (s Splitor) Slices() int {
+func (s *Splitor) dumpMap(table string, node *Node, file *os.File) error {
+	deleteList := make([]string, 0)
+	clause, err := s.genRootClause(table, node)
+
+	if err != nil {
+		return err
+	}
+
+	visitedSet := make(map[*Node]bool)
+
+	var recursivelyWrite func(node *Node, clause string) error
+	recursivelyWrite = func(node *Node, clause string) error {
+		visitedSet[node] = true
+		deleteList = append([]string{fmt.Sprintf("delete from %s %s", node.table.Name, clause)}, deleteList...)
+		selectStmt := fmt.Sprintf("select * from %s %s", node.table.Name, clause)
+		log.Debug(selectStmt)
+		stream, err := s.exec.QueryStream(selectStmt)
+		if err != nil {
+			return err
+		}
+		err = s.writeToFile(node.table, file, stream)
+		if err != nil {
+			return err
+		}
+
+		for _, link := range node.links {
+			if !visitedSet[link.node] {
+				linkClause := fmt.Sprintf(
+					"where %s in (select %s from %s %s)",
+					link.to, link.from, node.table.Name, clause,
+				)
+				err = recursivelyWrite(link.node, linkClause)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+
+	err = recursivelyWrite(node, clause)
+	if err != nil {
+		return err
+	}
+
+	if s.filterMap == nil {
+		// no filter map, filter by delete
+
+		for _, deleteStmt := range deleteList {
+			log.Debug(deleteStmt)
+			_, err = s.exec.Exec(deleteStmt)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Splitor) genRootClause(table string, node *Node) (clause string, err error) {
+	if s.groupKey != nil && s.groupKey.Table == table {
+		// group split
+		groupValue := s.groupValues[s.sliceCounter]
+		clause = fmt.Sprintf(
+			"where %s<=>%s",
+			s.groupKey.String(),
+			generator.FormatValue(node.table.ColumnsMap[s.groupKey.Column].Type, groupValue),
+		)
+	} else if s.sliceSizeMap[table] != 0 {
+		// evenly split
+
+		if node.table.PrimaryKey == nil {
+			err = fmt.Errorf("table %s has no primary key; evenly split fails", table)
+			return
+		}
+
+		clause = fmt.Sprintf(
+			"order by %s limit %d",
+			node.table.PrimaryKey.Name,
+			s.sliceSizeMap[table],
+		)
+	}
+	return
+}
+
+func (s *Splitor) writeToFile(table *types.Table, file *os.File, stream executor.RowStream) error {
+	for {
+		var row executor.Row
+		row, err := stream.Next()
+		if err != nil {
+			return err
+		}
+
+		if row == nil {
+			return nil
+		}
+
+		if s.filterMap != nil {
+			if table.PrimaryKey == nil {
+				return fmt.Errorf("table %s has no primary key, cannot be filtered", table.Name)
+			}
+
+			index, ok := stream.ColumnsMap[table.PrimaryKey.Name.String()]
+			if !ok {
+				return fmt.Errorf("table %s has no column %s", table.Name, table.PrimaryKey.Name)
+			}
+
+			value := string(row[index])
+			pk, err := strconv.ParseUint(value, 10, 64)
+			if err != nil {
+				return fmt.Errorf("primary key %s of %s is not a invalid unsigned int, value: %s",
+					table.PrimaryKey.Name, table.Name, value,
+				)
+			}
+
+			// A sparse bit array never returns an error
+			filter := s.filterMap[table.Name.String()]
+			set, _ := filter.GetBit(pk)
+
+			if set {
+				continue
+			}
+
+			_ = filter.SetBit(pk)
+		}
+
+		valueList := make([]string, 0, len(row))
+		for i, value := range row {
+			column := table.ColumnsMap[string(stream.Columns[i])]
+			valueList = append(valueList, generator.FormatValue(column.Type, value))
+		}
+
+		insertStmt := fmt.Sprintf(
+			"insert into %s values (%s);\n",
+			table.Name, strings.Join(valueList, ","),
+		)
+
+		_, err = file.WriteString(insertStmt)
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func (s *Splitor) Slices() int {
 	return s.slices
 }
