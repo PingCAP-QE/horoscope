@@ -31,6 +31,7 @@ type (
 		GetHints(query string) (Hints, error)
 		Explain(query string) (Rows, []error, error)
 		ExplainAnalyze(query string) (Rows, []error, error)
+		Commit() error
 		Rollback() error
 	}
 
@@ -140,6 +141,10 @@ func (e *TxExecutor) queryWarnings() (warnings []error, err error) {
 	}
 
 	return
+}
+
+func (e *TxExecutor) Commit() error {
+	return e.tx.Commit()
 }
 
 func (e *TxExecutor) Rollback() error {

@@ -47,6 +47,7 @@ var (
 			}
 			return nil
 		},
+		After: rollback,
 	}
 )
 

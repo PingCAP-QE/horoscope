@@ -89,6 +89,7 @@ var (
 				Action: clean,
 			},
 		},
+		After: commit,
 	}
 )
 

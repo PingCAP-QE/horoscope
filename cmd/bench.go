@@ -35,6 +35,7 @@ var (
 		Name:   "bench",
 		Usage:  "Bench the optimizer",
 		Action: bench,
+		After:  rollback,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "prepare",

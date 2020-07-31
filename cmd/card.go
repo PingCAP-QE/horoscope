@@ -35,6 +35,7 @@ var (
 		Name:   "card",
 		Usage:  "test the cardinality estimations",
 		Action: testCard,
+		After:  rollback,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "columns",
