@@ -14,7 +14,6 @@
 package executor
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -27,41 +26,30 @@ type (
 	QueryMode uint8
 	Executor  interface {
 		Query(query string) (Rows, error)
+		QueryStream(query string) (RowStream, error)
 		Exec(query string) (Result, error)
 		GetHints(query string) (Hints, error)
 		Explain(query string) (Rows, []error, error)
 		ExplainAnalyze(query string) (Rows, []error, error)
-		ExecAndRollback(query string) (Result, error)
-		Transaction(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+		Rollback() error
 	}
 
-	MySQLExecutor struct {
-		db *sql.DB
+	TxExecutor struct {
+		tx *sql.Tx
 	}
 )
 
-func NewExecutor(dsn string) (Executor, error) {
+func NewExecutor(dsn string) (exec Executor, err error) {
 	db, err := sql.Open("mysql", dsn)
-	return &MySQLExecutor{db: db}, err
-}
-
-func (e *MySQLExecutor) RunAndRollback(options *sql.TxOptions, task func(tx *sql.Tx) error) (err error) {
-	tx, err := e.db.BeginTx(context.Background(), options)
 	if err != nil {
-		return err
+		return
 	}
-	defer func() {
-		rollbackError := tx.Rollback()
-		if err == nil {
-			err = rollbackError
-		}
-	}()
-	err = task(tx)
-	return
+	tx, err := db.Begin()
+	return &TxExecutor{tx: tx}, err
 }
 
-func (e *MySQLExecutor) Query(query string) (rows Rows, err error) {
-	data, err := e.db.Query(query)
+func (e *TxExecutor) Query(query string) (rows Rows, err error) {
+	data, err := e.tx.Query(query)
 	if err != nil {
 		return
 	}
@@ -69,23 +57,17 @@ func (e *MySQLExecutor) Query(query string) (rows Rows, err error) {
 	return
 }
 
-func (e *MySQLExecutor) ExecAndRollback(query string) (result Result, err error) {
-	err = e.RunAndRollback(&sql.TxOptions{Isolation: sql.LevelDefault}, func(tx *sql.Tx) error {
-		data, err := tx.Exec(query)
-		if err != nil {
-			return err
-		}
-		result, err = NewResult(data)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+func (e *TxExecutor) QueryStream(query string) (stream RowStream, err error) {
+	data, err := e.tx.Query(query)
+	if err != nil {
+		return
+	}
+	stream, err = NewRowStream(data)
 	return
 }
 
-func (e *MySQLExecutor) Exec(query string) (result Result, err error) {
-	data, err := e.db.Exec(query)
+func (e *TxExecutor) Exec(query string) (result Result, err error) {
+	data, err := e.tx.Exec(query)
 	if err != nil {
 		return
 	}
@@ -94,15 +76,30 @@ func (e *MySQLExecutor) Exec(query string) (result Result, err error) {
 }
 
 /// GetHints would query plan out of range warnings
-func (e *MySQLExecutor) GetHints(query string) (hints Hints, err error) {
-	hints, err = e.getHints(query)
+func (e *TxExecutor) GetHints(query string) (hints Hints, err error) {
+	explanation := fmt.Sprintf("explain format = 'hint' %s", query)
+	rawRows, err := e.tx.Query(explanation)
 	if err != nil {
 		return
 	}
+	rows, err := NewRows(rawRows)
+	if err != nil {
+		return
+	}
+	if rows.RowCount() != 1 || rows.ColumnNums() != 1 {
+		err = errors.New(fmt.Sprintf("Unexpected hints: %#v", rows))
+		return
+	}
+	hints = NewHints(string(rows.Data[0][0]))
+
+	log.WithFields(log.Fields{
+		"query": query,
+		"hints": hints,
+	}).Debug("hints of query")
 	return
 }
 
-func (e *MySQLExecutor) Explain(query string) (rows Rows, warnings []error, err error) {
+func (e *TxExecutor) Explain(query string) (rows Rows, warnings []error, err error) {
 	rows, err = e.Query(fmt.Sprintf("EXPLAIN %s", query))
 	if err != nil {
 		err = fmt.Errorf("explain error: %v", err)
@@ -112,7 +109,7 @@ func (e *MySQLExecutor) Explain(query string) (rows Rows, warnings []error, err 
 	return
 }
 
-func (e *MySQLExecutor) ExplainAnalyze(query string) (rows Rows, warnings []error, err error) {
+func (e *TxExecutor) ExplainAnalyze(query string) (rows Rows, warnings []error, err error) {
 	rows, err = e.Query(fmt.Sprintf("EXPLAIN ANALYZE %s", query))
 	if err != nil {
 		err = fmt.Errorf("explain error: %v", err)
@@ -122,8 +119,8 @@ func (e *MySQLExecutor) ExplainAnalyze(query string) (rows Rows, warnings []erro
 	return
 }
 
-func (e *MySQLExecutor) queryWarnings() (warnings []error, err error) {
-	data, err := e.db.Query("SHOW WARNINGS;")
+func (e *TxExecutor) queryWarnings() (warnings []error, err error) {
+	data, err := e.tx.Query("SHOW WARNINGS;")
 	if err != nil {
 		return
 	}
@@ -145,29 +142,6 @@ func (e *MySQLExecutor) queryWarnings() (warnings []error, err error) {
 	return
 }
 
-func (e *MySQLExecutor) getHints(query string) (hints Hints, err error) {
-	explanation := fmt.Sprintf("explain format = 'hint' %s", query)
-	rawRows, err := e.db.Query(explanation)
-	if err != nil {
-		return
-	}
-	rows, err := NewRows(rawRows)
-	if err != nil {
-		return
-	}
-	if rows.RowCount() != 1 || rows.ColumnNums() != 1 {
-		err = errors.New(fmt.Sprintf("Unexpected hints: %#v", rows))
-		return
-	}
-	hints = NewHints(string(rows.Data[0][0]))
-
-	log.WithFields(log.Fields{
-		"query": query,
-		"hints": hints,
-	}).Debug("hints of query")
-	return
-}
-
-func (e *MySQLExecutor) Transaction(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
-	return e.db.BeginTx(ctx, opts)
+func (e *TxExecutor) Rollback() error {
+	return e.tx.Rollback()
 }

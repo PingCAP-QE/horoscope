@@ -94,6 +94,9 @@ func main() {
 			Database, err = InitDatabase(Exec)
 			return
 		},
+		After: func(context *cli.Context) error {
+			return Exec.Rollback()
+		},
 		Commands: cli.Commands{
 			benchCommand,
 			genCommand,
