@@ -47,7 +47,7 @@ var (
 				Name:        "tables",
 				Aliases:     []string{"t"},
 				Usage:       "the max `numbers` of tables",
-				Value:       3,
+				Value:       1,
 				Destination: &genOptions.MaxTables,
 			},
 			&cli.IntFlag{
