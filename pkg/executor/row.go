@@ -23,24 +23,28 @@ type (
 	Row [][]byte
 
 	Rows struct {
-		Columns Row
-		Data    []Row
+		ColumnMap map[string]int
+		Columns   Row
+		Data      []Row
 	}
 
 	RowStream struct {
-		Columns   Row
-		rawStream *sql.Rows
+		ColumnsMap map[string]int
+		Columns    Row
+		rawStream  *sql.Rows
 	}
 )
 
 func NewRowStream(rows *sql.Rows) (ret RowStream, err error) {
 	ret.rawStream = rows
+	ret.ColumnsMap = make(map[string]int)
 	columns, err := rows.Columns()
 	if err != nil {
 		return
 	}
-	for _, column := range columns {
+	for i, column := range columns {
 		ret.Columns = append(ret.Columns, []byte(column))
+		ret.ColumnsMap[column] = i
 	}
 	return
 }
@@ -83,7 +87,7 @@ func NewRows(rows *sql.Rows) (ret Rows, err error) {
 		}
 
 		if row == nil {
-			ret = Rows{Data: data, Columns: stream.Columns}
+			ret = Rows{Data: data, Columns: stream.Columns, ColumnMap: stream.ColumnsMap}
 			return
 		}
 

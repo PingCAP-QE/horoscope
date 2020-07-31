@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golang-collections/go-datastructures/bitarray"
 	log "github.com/sirupsen/logrus"
 
 	types "github.com/chaos-mesh/horoscope/pkg/database-types"
@@ -36,14 +37,16 @@ type Splitor struct {
 	db           *types.Database
 	maps         Maps
 	sliceSizeMap map[string]int
+	filterMap    map[string]bitarray.BitArray
 }
 
-func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int) (splitor Splitor, err error) {
+func Split(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int, useBitArray bool) (splitor Splitor, err error) {
 	splitor.groupKey = groupKey
 	splitor.db = db
 	splitor.slices = slices
 	splitor.exec = exec
 	splitor.sliceSizeMap = make(map[string]int)
+	splitor.initFilter(useBitArray)
 
 	splitor.maps, err = BuildMaps(db, maps, groupKey)
 	if err != nil {
@@ -60,6 +63,9 @@ func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap
 	}
 
 	err = splitor.calculateSliceSize()
+	if err != nil {
+		return
+	}
 
 	return
 }
@@ -112,6 +118,18 @@ func (s *Splitor) calculateSliceSize() error {
 	return nil
 }
 
+func (s *Splitor) initFilter(useBitArray bool) {
+	if !useBitArray {
+		return
+	}
+
+	s.filterMap = make(map[string]bitarray.BitArray)
+
+	for table := range s.db.BaseTables {
+		s.filterMap[table] = bitarray.NewSparseBitArray()
+	}
+}
+
 func (s *Splitor) DumpSchema(path string) error {
 	file, err := os.Create(path)
 	if err != nil {
@@ -153,15 +171,14 @@ func (s *Splitor) Next(path string) (id int, err error) {
 		} else if s.sliceSizeMap[table] != 0 {
 			// evenly split
 
-			pk := node.table.PrimaryKey()
-			if pk == nil {
+			if node.table.PrimaryKey == nil {
 				err = fmt.Errorf("table %s has no primary key; evenly split fails", table)
 				return
 			}
 
 			clause = fmt.Sprintf(
 				"order by %s limit %d",
-				pk.Name,
+				node.table.PrimaryKey.Name,
 				s.sliceSizeMap[table],
 			)
 		}
@@ -178,6 +195,35 @@ func (s *Splitor) Next(path string) (id int, err error) {
 
 				if row == nil {
 					return nil
+				}
+
+				if s.filterMap != nil {
+					if table.PrimaryKey == nil {
+						return fmt.Errorf("table %s has no primary key, cannot be filtered", table.Name)
+					}
+
+					index, ok := stream.ColumnsMap[table.PrimaryKey.Name.String()]
+					if !ok {
+						return fmt.Errorf("table %s has no column %s", table.Name, table.PrimaryKey.Name)
+					}
+
+					value := string(row[index])
+					pk, err := strconv.ParseUint(value, 10, 64)
+					if err != nil {
+						return fmt.Errorf("primary key %s of %s is not a invalid unsigned int, value: %s",
+							table.PrimaryKey.Name, table.Name, value,
+						)
+					}
+
+					// A sparse bit array never returns an error
+					filter := s.filterMap[table.Name.String()]
+					set, _ := filter.GetBit(pk)
+
+					if set {
+						continue
+					}
+
+					_ = filter.SetBit(pk)
 				}
 
 				valueList := make([]string, 0, len(row))
@@ -233,11 +279,15 @@ func (s *Splitor) Next(path string) (id int, err error) {
 			return
 		}
 
-		for _, deleteStmt := range deleteList {
-			log.Debug(deleteStmt)
-			_, err = s.exec.Exec(deleteStmt)
-			if err != nil {
-				return
+		if s.filterMap == nil {
+			// no filter map, filter by delete
+
+			for _, deleteStmt := range deleteList {
+				log.Debug(deleteStmt)
+				_, err = s.exec.Exec(deleteStmt)
+				if err != nil {
+					return
+				}
 			}
 		}
 	}
