@@ -39,9 +39,9 @@ type (
 var (
 	maxIndexes, compoundLevel int
 	reserveIndexes            bool
-	dynWorkload               = "benchmark/dyn/indexes"
-	addIndexes                = path.Join(dynWorkload, "add-indexes.sql")
-	cleanIndexes              = path.Join(dynWorkload, "clean-indexes.sql")
+	indexWorkload             = path.Join(dynWorkload, "indexes")
+	addIndexes                = path.Join(indexWorkload, "add-indexes.sql")
+	cleanIndexes              = path.Join(indexWorkload, "clean-indexes.sql")
 	indexCommand              = &cli.Command{
 		Name:  "index",
 		Usage: "Add indexes for tables",

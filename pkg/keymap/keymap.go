@@ -31,25 +31,39 @@ type (
 	}
 )
 
-var keyRegex *regexp.Regexp
+var (
+	keyRegex           *regexp.Regexp
+	singleCommentRegex *regexp.Regexp
+	commentsRegex      *regexp.Regexp
+)
 
 func init() {
 	var err error
-	keyRegex, err = regexp.Compile(`(\w+)\.(\w+)`)
+	keyRegex, err = regexp.Compile(`^(\w+)\.(\w+)$`)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	singleCommentRegex, err = regexp.Compile(`//.*`)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	commentsRegex, err = regexp.Compile(`/\*(.|\r|\n)*\*/`)
 	if err != nil {
 		panic(err.Error())
 	}
 }
 
-func parseKey(rawKey string) (*Key, error) {
-	segments := keyRegex.FindStringSubmatch(rawKey)
+func ParseKey(rawKey string) (*Key, error) {
+	segments := keyRegex.FindStringSubmatch(strings.TrimSpace(rawKey))
 	if len(segments) != 3 {
 		return nil, fmt.Errorf("invalid key: %s", rawKey)
 	}
 	return &Key{Table: segments[1], Column: segments[2]}, nil
 }
 
-func parseLine(line string) (keyMap KeyMap, err error) {
+func ParseLine(line string) (keyMap KeyMap, err error) {
 	keys := strings.Split(line, "<=>")
 	if len(keys) < 2 {
 		err = fmt.Errorf("invalid keymap line: %s", line)
@@ -58,7 +72,7 @@ func parseLine(line string) (keyMap KeyMap, err error) {
 	keyList := make([]*Key, 0, len(keys))
 	for _, rawKey := range keys {
 		var key *Key
-		key, err = parseKey(strings.TrimSpace(rawKey))
+		key, err = ParseKey(rawKey)
 		if err != nil {
 			return
 		}
@@ -72,13 +86,16 @@ func parseLine(line string) (keyMap KeyMap, err error) {
 }
 
 func Parse(contents string) (maps []KeyMap, err error) {
+	contents = commentsRegex.ReplaceAllString(contents, "")
+	contents = singleCommentRegex.ReplaceAllString(contents, "")
+
 	lines := strings.Split(contents, ";")
 	maps = make([]KeyMap, 0, len(lines))
 	for _, line := range lines {
 		var keyMap KeyMap
 		trimedLine := strings.TrimSpace(line)
 		if trimedLine != "" {
-			keyMap, err = parseLine(trimedLine)
+			keyMap, err = ParseLine(trimedLine)
 			if err != nil {
 				return
 			}
@@ -95,4 +112,8 @@ func ParseFile(filename string) (maps []KeyMap, err error) {
 	}
 	maps, err = Parse(string(data))
 	return
+}
+
+func (key *Key) String() string {
+	return fmt.Sprintf("%s.%s", key.Table, key.Column)
 }

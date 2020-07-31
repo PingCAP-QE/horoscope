@@ -26,37 +26,69 @@ type (
 		Columns Row
 		Data    []Row
 	}
+
+	RowStream struct {
+		Columns   Row
+		rawStream *sql.Rows
+	}
 )
 
-func NewRows(rows *sql.Rows) (ret Rows, err error) {
-	data := make([]Row, 0)
+func NewRowStream(rows *sql.Rows) (ret RowStream, err error) {
+	ret.rawStream = rows
 	columns, err := rows.Columns()
-	var colms Row
-	for _, column := range columns {
-		colms = append(colms, []byte(column))
-	}
-
 	if err != nil {
 		return
 	}
-	for rows.Next() {
-		dataSet := make([]interface{}, 0, len(columns))
-		row := make(Row, 0, len(columns))
-		for range columns {
-			dataSet = append(dataSet, &[]byte{})
-		}
-		err = rows.Scan(dataSet...)
+	for _, column := range columns {
+		ret.Columns = append(ret.Columns, []byte(column))
+	}
+	return
+}
+
+func (s *RowStream) Next() (row Row, err error) {
+	if !s.rawStream.Next() {
+		return
+	}
+
+	dataSet := make([]interface{}, 0, len(s.Columns))
+	row = make(Row, 0, len(s.Columns))
+
+	for range s.Columns {
+		dataSet = append(dataSet, &[]byte{})
+	}
+
+	err = s.rawStream.Scan(dataSet...)
+	if err != nil {
+		return
+	}
+
+	for _, data := range dataSet {
+		row = append(row, *data.(*[]byte))
+	}
+	return
+}
+
+func NewRows(rows *sql.Rows) (ret Rows, err error) {
+	data := make([]Row, 0)
+	stream, err := NewRowStream(rows)
+	if err != nil {
+		return
+	}
+
+	for {
+		var row Row
+		row, err = stream.Next()
 		if err != nil {
 			return
 		}
 
-		for _, data := range dataSet {
-			row = append(row, *data.(*[]byte))
+		if row == nil {
+			ret = Rows{Data: data, Columns: stream.Columns}
+			return
 		}
+
 		data = append(data, row)
 	}
-	ret = Rows{Data: data, Columns: colms}
-	return
 }
 
 func (r Rows) RowCount() int {

@@ -26,14 +26,16 @@ var descriptionColumns = executor.Row{[]byte("Field"), []byte("Type"), []byte("N
 
 // Table defines database table
 type Table struct {
-	Name    model.CIStr
-	Columns []*Column
+	Name       model.CIStr
+	Columns    []*Column
+	ColumnsMap map[string]*Column
 }
 
 func PrepareTable(name string) *Table {
 	return &Table{
-		Name:    model.NewCIStr(name),
-		Columns: make([]*Column, 0),
+		Name:       model.NewCIStr(name),
+		Columns:    make([]*Column, 0),
+		ColumnsMap: make(map[string]*Column),
 	}
 }
 
@@ -48,6 +50,16 @@ func (t *Table) LoadColumns(data executor.Rows) error {
 		}
 
 		t.Columns = append(t.Columns, column)
+		t.ColumnsMap[column.Name.String()] = column
+	}
+	return nil
+}
+
+func (t *Table) PrimaryKey() *Column {
+	for _, column := range t.Columns {
+		if column.Key == "PRI" {
+			return column
+		}
 	}
 	return nil
 }

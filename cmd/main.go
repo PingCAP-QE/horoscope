@@ -25,6 +25,10 @@ import (
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
+const (
+	dynWorkload = "benchmark/dyn"
+)
+
 var (
 	/// Config
 	dsn           string
@@ -99,6 +103,7 @@ func main() {
 			infoCommand,
 			indexCommand,
 			cardCommand,
+			splitCommand,
 		},
 	}
 
