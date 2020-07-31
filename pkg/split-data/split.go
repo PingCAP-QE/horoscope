@@ -40,12 +40,14 @@ type Splitor struct {
 	filterMap    map[string]bitarray.BitArray
 }
 
-func Split(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int, useBitArray bool) (splitor Splitor, err error) {
-	splitor.groupKey = groupKey
-	splitor.db = db
-	splitor.slices = slices
-	splitor.exec = exec
-	splitor.sliceSizeMap = make(map[string]int)
+func Split(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int, useBitArray bool) (splitor *Splitor, err error) {
+	splitor = &Splitor{
+		groupKey:     groupKey,
+		db:           db,
+		slices:       slices,
+		exec:         exec,
+		sliceSizeMap: make(map[string]int),
+	}
 	splitor.initFilter(useBitArray)
 
 	splitor.maps, err = BuildMaps(db, maps, groupKey)
