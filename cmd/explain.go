@@ -71,4 +71,5 @@ var explainCommand = &cli.Command{
 		fmt.Println(rows.String())
 		return nil
 	},
+	After: rollback,
 }

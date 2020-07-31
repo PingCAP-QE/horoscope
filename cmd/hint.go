@@ -35,6 +35,7 @@ var hintCommand = &cli.Command{
 			Destination: &planID,
 		},
 	},
+	After: rollback,
 	Action: func(context *cli.Context) error {
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("tidb> ")

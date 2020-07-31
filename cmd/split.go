@@ -26,8 +26,9 @@ import (
 )
 
 var (
-	group  string
-	slices uint
+	group       string
+	slices      uint
+	useBitArray bool
 
 	groupKey *keymap.Key
 
@@ -53,6 +54,12 @@ var (
 				Value:       100,
 				Destination: &slices,
 			},
+			&cli.BoolFlag{
+				Name:        "bitarray",
+				Aliases:     []string{"b"},
+				Usage:       "filter duplicated rows with a bitarray",
+				Destination: &useBitArray,
+			},
 		},
 		Before: func(*cli.Context) (err error) {
 			if group != "" {
@@ -66,18 +73,11 @@ var (
 				return err
 			}
 
-			splitor, err := split_data.StartSplit(Exec, Database, keymaps, groupKey, int(slices))
+			splitor, err := split_data.Split(Exec, Database, keymaps, groupKey, int(slices), useBitArray)
 
 			if err != nil {
 				return err
 			}
-
-			defer func() {
-				endErr := splitor.EndSplit()
-				if err == nil {
-					err = endErr
-				}
-			}()
 
 			err = splitor.DumpSchema(schemaPath)
 			if err != nil {
@@ -103,5 +103,6 @@ var (
 				}
 			}
 		},
+		After: rollback,
 	}
 )

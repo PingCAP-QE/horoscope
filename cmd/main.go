@@ -161,3 +161,11 @@ func InitDatabase(exec executor.Executor) (database *types.Database, err error) 
 	}
 	return
 }
+
+func commit(*cli.Context) error {
+	return Exec.Commit()
+}
+
+func rollback(*cli.Context) error {
+	return Exec.Rollback()
+}

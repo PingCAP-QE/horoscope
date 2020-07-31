@@ -6,6 +6,7 @@ require (
 	github.com/aclements/go-moremath v0.0.0-20190830160640-d16893ddf098
 	github.com/go-openapi/strfmt v0.19.5 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/golang-collections/go-datastructures v0.0.0-20150211160725-59788d5eb259
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/jedib0t/go-pretty v4.3.0+incompatible
 	github.com/pingcap/errors v0.11.5-0.20190809092503-95897b64e011

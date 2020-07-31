@@ -73,5 +73,6 @@ var (
 			fmt.Printf("%s\nComplete in %vms", rows[0].String(), dur.Values)
 			return nil
 		},
+		After: rollback,
 	}
 )

@@ -14,13 +14,12 @@
 package split_data
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/golang-collections/go-datastructures/bitarray"
 	log "github.com/sirupsen/logrus"
 
 	types "github.com/chaos-mesh/horoscope/pkg/database-types"
@@ -34,24 +33,24 @@ type Splitor struct {
 	groupKey     *keymap.Key
 	groupValues  [][]byte
 	slices       int
-	tx           *sql.Tx
+	exec         executor.Executor
 	db           *types.Database
 	maps         Maps
 	sliceSizeMap map[string]int
+	filterMap    map[string]bitarray.BitArray
 }
 
-func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int) (splitor Splitor, err error) {
-	splitor.groupKey = groupKey
-	splitor.db = db
-	splitor.slices = slices
-	splitor.sliceSizeMap = make(map[string]int)
+func Split(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int, useBitArray bool) (splitor *Splitor, err error) {
+	splitor = &Splitor{
+		groupKey:     groupKey,
+		db:           db,
+		slices:       slices,
+		exec:         exec,
+		sliceSizeMap: make(map[string]int),
+	}
+	splitor.initFilter(useBitArray)
 
 	splitor.maps, err = BuildMaps(db, maps, groupKey)
-	if err != nil {
-		return
-	}
-
-	splitor.tx, err = exec.Transaction(context.Background(), nil)
 	if err != nil {
 		return
 	}
@@ -66,24 +65,21 @@ func StartSplit(exec executor.Executor, db *types.Database, maps []keymap.KeyMap
 	}
 
 	err = splitor.calculateSliceSize()
+	if err != nil {
+		return
+	}
 
 	return
 }
 
 func (s *Splitor) loadGroupValues() error {
-	rawData, err := s.tx.Query(fmt.Sprintf(
+	rows, err := s.exec.Query(fmt.Sprintf(
 		"select %s from %s group by %s order by %s",
 		s.groupKey.Column,
 		s.groupKey.Table,
 		s.groupKey.Column,
 		s.groupKey.Column,
 	))
-	if err != nil {
-		return err
-	}
-
-	rows, err := executor.NewRows(rawData)
-
 	if err != nil {
 		return err
 	}
@@ -106,12 +102,7 @@ func (s *Splitor) updateSlices() {
 func (s *Splitor) calculateSliceSize() error {
 	for table := range s.maps {
 		if s.groupKey == nil || s.groupKey.Table != table {
-			raw, err := s.tx.Query(fmt.Sprintf("select count(*) from %s", table))
-			if err != nil {
-				return err
-			}
-
-			rows, err := executor.NewRows(raw)
+			rows, err := s.exec.Query(fmt.Sprintf("select count(*) from %s", table))
 			if err != nil {
 				return err
 			}
@@ -129,6 +120,18 @@ func (s *Splitor) calculateSliceSize() error {
 	return nil
 }
 
+func (s *Splitor) initFilter(useBitArray bool) {
+	if !useBitArray {
+		return
+	}
+
+	s.filterMap = make(map[string]bitarray.BitArray)
+
+	for table := range s.db.BaseTables {
+		s.filterMap[table] = bitarray.NewSparseBitArray()
+	}
+}
+
 func (s *Splitor) DumpSchema(path string) error {
 	file, err := os.Create(path)
 	if err != nil {
@@ -136,11 +139,7 @@ func (s *Splitor) DumpSchema(path string) error {
 	}
 
 	for table := range s.db.BaseTables {
-		raw, err := s.tx.Query(fmt.Sprintf("show create table %s", table))
-		if err != nil {
-			return err
-		}
-		rows, err := executor.NewRows(raw)
+		rows, err := s.exec.Query(fmt.Sprintf("show create table %s", table))
 		if err != nil {
 			return err
 		}
@@ -161,110 +160,9 @@ func (s *Splitor) Next(path string) (id int, err error) {
 	}
 
 	for table, node := range s.maps {
-		deleteList := make([]string, 0)
-		var clause string
-		if s.groupKey != nil && s.groupKey.Table == table {
-			// group split
-			groupValue := s.groupValues[s.sliceCounter]
-			clause = fmt.Sprintf(
-				"where %s<=>%s",
-				s.groupKey.String(),
-				generator.FormatValue(node.table.ColumnsMap[s.groupKey.Column].Type, groupValue),
-			)
-		} else if s.sliceSizeMap[table] != 0 {
-			// evenly split
-
-			pk := node.table.PrimaryKey()
-			if pk == nil {
-				err = fmt.Errorf("table %s has no primary key; evenly split fails", table)
-				return
-			}
-
-			clause = fmt.Sprintf(
-				"order by %s limit %d",
-				pk.Name,
-				s.sliceSizeMap[table],
-			)
-		}
-
-		visitedSet := make(map[*Node]bool)
-
-		writeToFile := func(table *types.Table, rows *sql.Rows) error {
-			stream, err := executor.NewRowStream(rows)
-			if err != nil {
-				return err
-			}
-
-			for {
-				var row executor.Row
-				row, err = stream.Next()
-				if err != nil {
-					return err
-				}
-
-				if row == nil {
-					return nil
-				}
-
-				valueList := make([]string, 0, len(row))
-				for i, value := range row {
-					column := table.ColumnsMap[string(stream.Columns[i])]
-					valueList = append(valueList, generator.FormatValue(column.Type, value))
-				}
-
-				insertStmt := fmt.Sprintf(
-					"insert into %s values (%s);\n",
-					table.Name, strings.Join(valueList, ","),
-				)
-
-				_, err := file.WriteString(insertStmt)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		var recursivelyWrite func(node *Node, clause string) error
-		recursivelyWrite = func(node *Node, clause string) error {
-			visitedSet[node] = true
-			deleteList = append([]string{fmt.Sprintf("delete from %s %s", node.table.Name, clause)}, deleteList...)
-			selectStmt := fmt.Sprintf("select * from %s %s", node.table.Name, clause)
-			log.Debug(selectStmt)
-			rows, err := s.tx.Query(selectStmt)
-			if err != nil {
-				return err
-			}
-			err = writeToFile(node.table, rows)
-			if err != nil {
-				return err
-			}
-
-			for _, link := range node.links {
-				if !visitedSet[link.node] {
-					linkClause := fmt.Sprintf(
-						"where %s in (select %s from %s %s)",
-						link.to, link.from, node.table.Name, clause,
-					)
-					err = recursivelyWrite(link.node, linkClause)
-					if err != nil {
-						return err
-					}
-				}
-			}
-			return nil
-		}
-
-		err = recursivelyWrite(node, clause)
+		err = s.dumpMap(table, node, file)
 		if err != nil {
 			return
-		}
-
-		for _, deleteStmt := range deleteList {
-			log.Debug(deleteStmt)
-			_, err = s.tx.Exec(deleteStmt)
-			if err != nil {
-				return
-			}
 		}
 	}
 
@@ -279,10 +177,150 @@ func (s *Splitor) Next(path string) (id int, err error) {
 	return
 }
 
-func (s *Splitor) EndSplit() error {
-	return s.tx.Rollback()
+func (s *Splitor) dumpMap(table string, node *Node, file *os.File) error {
+	deleteList := make([]string, 0)
+	clause, err := s.genRootClause(table, node)
+
+	if err != nil {
+		return err
+	}
+
+	visitedSet := make(map[*Node]bool)
+
+	var recursivelyWrite func(node *Node, clause string) error
+	recursivelyWrite = func(node *Node, clause string) error {
+		visitedSet[node] = true
+		deleteList = append([]string{fmt.Sprintf("delete from %s %s", node.table.Name, clause)}, deleteList...)
+		selectStmt := fmt.Sprintf("select * from %s %s", node.table.Name, clause)
+		log.Debug(selectStmt)
+		stream, err := s.exec.QueryStream(selectStmt)
+		if err != nil {
+			return err
+		}
+		err = s.writeToFile(node.table, file, stream)
+		if err != nil {
+			return err
+		}
+
+		for _, link := range node.links {
+			if !visitedSet[link.node] {
+				linkClause := fmt.Sprintf(
+					"where %s in (select %s from %s %s)",
+					link.to, link.from, node.table.Name, clause,
+				)
+				err = recursivelyWrite(link.node, linkClause)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+
+	err = recursivelyWrite(node, clause)
+	if err != nil {
+		return err
+	}
+
+	if s.filterMap == nil {
+		// no filter map, filter by delete
+
+		for _, deleteStmt := range deleteList {
+			log.Debug(deleteStmt)
+			_, err = s.exec.Exec(deleteStmt)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
-func (s Splitor) Slices() int {
+func (s *Splitor) genRootClause(table string, node *Node) (clause string, err error) {
+	if s.groupKey != nil && s.groupKey.Table == table {
+		// group split
+		groupValue := s.groupValues[s.sliceCounter]
+		clause = fmt.Sprintf(
+			"where %s<=>%s",
+			s.groupKey.String(),
+			generator.FormatValue(node.table.ColumnsMap[s.groupKey.Column].Type, groupValue),
+		)
+	} else if s.sliceSizeMap[table] != 0 {
+		// evenly split
+
+		if node.table.PrimaryKey == nil {
+			err = fmt.Errorf("table %s has no primary key; evenly split fails", table)
+			return
+		}
+
+		clause = fmt.Sprintf(
+			"order by %s limit %d",
+			node.table.PrimaryKey.Name,
+			s.sliceSizeMap[table],
+		)
+	}
+	return
+}
+
+func (s *Splitor) writeToFile(table *types.Table, file *os.File, stream executor.RowStream) error {
+	for {
+		var row executor.Row
+		row, err := stream.Next()
+		if err != nil {
+			return err
+		}
+
+		if row == nil {
+			return nil
+		}
+
+		if s.filterMap != nil {
+			if table.PrimaryKey == nil {
+				return fmt.Errorf("table %s has no primary key, cannot be filtered", table.Name)
+			}
+
+			index, ok := stream.ColumnsMap[table.PrimaryKey.Name.String()]
+			if !ok {
+				return fmt.Errorf("table %s has no column %s", table.Name, table.PrimaryKey.Name)
+			}
+
+			value := string(row[index])
+			pk, err := strconv.ParseUint(value, 10, 64)
+			if err != nil {
+				return fmt.Errorf("primary key %s of %s is not a invalid unsigned int, value: %s",
+					table.PrimaryKey.Name, table.Name, value,
+				)
+			}
+
+			// A sparse bit array never returns an error
+			filter := s.filterMap[table.Name.String()]
+			set, _ := filter.GetBit(pk)
+
+			if set {
+				continue
+			}
+
+			_ = filter.SetBit(pk)
+		}
+
+		valueList := make([]string, 0, len(row))
+		for i, value := range row {
+			column := table.ColumnsMap[string(stream.Columns[i])]
+			valueList = append(valueList, generator.FormatValue(column.Type, value))
+		}
+
+		insertStmt := fmt.Sprintf(
+			"insert into %s values (%s);\n",
+			table.Name, strings.Join(valueList, ","),
+		)
+
+		_, err = file.WriteString(insertStmt)
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func (s *Splitor) Slices() int {
 	return s.slices
 }
