@@ -53,7 +53,7 @@ var (
 			&cli.BoolFlag{
 				Name:        "c",
 				Usage:       "collect cardinality estimation error",
-				Value:       false,
+				Value:       true,
 				Destination: &enableCollectCardError,
 			},
 			&cli.StringFlag{

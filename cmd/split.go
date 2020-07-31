@@ -14,12 +14,15 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"path"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
-	"github.com/chaos-mesh/horoscope/pkg/split-data"
+	split_data "github.com/chaos-mesh/horoscope/pkg/split-data"
 )
 
 var (
@@ -81,7 +84,24 @@ var (
 				return err
 			}
 
-			return nil
+			id := 0
+			if !pathExist(slicesDir) {
+				err = os.Mkdir(slicesDir, 0700)
+				if err != nil {
+					return err
+				}
+			}
+			for {
+				log.Infof("dumping slice (%d/%d)", id+1, splitor.Slices())
+
+				id, err = splitor.Next(path.Join(slicesDir, fmt.Sprintf("%d.sql", id)))
+				if err != nil {
+					return err
+				}
+				if id == 0 {
+					return nil
+				}
+			}
 		},
 	}
 )
