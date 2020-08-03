@@ -16,6 +16,7 @@ package split_data
 import (
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 
@@ -154,13 +155,11 @@ func (s *Splitor) DumpSchema(path string) error {
 
 /// Dump data into path; return id of next slice
 func (s *Splitor) Next(path string) (id int, err error) {
-	file, err := os.Create(path)
-	if err != nil {
+	if err = os.Mkdir(path, os.ModePerm); err != nil {
 		return
 	}
-
 	for table, node := range s.maps {
-		err = s.dumpMap(table, node, file)
+		err = s.dumpMap(table, node, path)
 		if err != nil {
 			return
 		}
@@ -177,7 +176,7 @@ func (s *Splitor) Next(path string) (id int, err error) {
 	return
 }
 
-func (s *Splitor) dumpMap(table string, node *Node, file *os.File) error {
+func (s *Splitor) dumpMap(table string, node *Node, dirPath string) error {
 	deleteList := make([]string, 0)
 	clause, err := s.genRootClause(table, node)
 
@@ -197,7 +196,7 @@ func (s *Splitor) dumpMap(table string, node *Node, file *os.File) error {
 		if err != nil {
 			return err
 		}
-		err = s.writeToFile(node.table, file, stream)
+		err = s.writeToFile(node.table, dirPath, stream)
 		if err != nil {
 			return err
 		}
@@ -262,7 +261,13 @@ func (s *Splitor) genRootClause(table string, node *Node) (clause string, err er
 	return
 }
 
-func (s *Splitor) writeToFile(table *types.Table, file *os.File, stream executor.RowStream) error {
+func (s *Splitor) writeToFile(table *types.Table, dirPath string, stream executor.RowStream) error {
+	filePath := path.Join(dirPath, fmt.Sprintf("%s.sql", strings.ToLower(table.Name.String())))
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
 	for {
 		var row executor.Row
 		row, err := stream.Next()

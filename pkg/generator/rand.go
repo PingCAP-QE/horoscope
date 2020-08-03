@@ -99,7 +99,9 @@ func RdDuration() time.Duration {
 }
 
 func FormatStringLiteral(value string) string {
-	return fmt.Sprintf("'%s'", strings.Replace(value, "'", "\\'", -1))
+	value = strings.Replace(value, `\`, `\\`, -1)
+	value = strings.Replace(value, `'`, `\'`, -1)
+	return fmt.Sprintf("'%s'", value)
 }
 
 func FormatTime(t time.Time) string {
