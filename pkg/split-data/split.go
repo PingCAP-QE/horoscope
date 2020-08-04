@@ -154,12 +154,12 @@ func (s *Splitor) DumpSchema(path string) error {
 }
 
 /// Dump data into path; return id of next slice
-func (s *Splitor) Next(path string) (id int, err error) {
+func (s *Splitor) Next(path string, batch uint) (id int, err error) {
 	if err = os.Mkdir(path, os.ModePerm); err != nil {
 		return
 	}
 	for table, node := range s.maps {
-		err = s.dumpMap(table, node, path)
+		err = s.dumpMap(table, node, path, batch)
 		if err != nil {
 			return
 		}
@@ -176,7 +176,7 @@ func (s *Splitor) Next(path string) (id int, err error) {
 	return
 }
 
-func (s *Splitor) dumpMap(table string, node *Node, dirPath string) error {
+func (s *Splitor) dumpMap(table string, node *Node, dirPath string, batch uint) error {
 	deleteList := make([]string, 0)
 	clause, err := s.genRootClause(table, node)
 
@@ -196,7 +196,7 @@ func (s *Splitor) dumpMap(table string, node *Node, dirPath string) error {
 		if err != nil {
 			return err
 		}
-		err = s.writeToFile(node.table, dirPath, stream)
+		err = s.writeToFile(node.table, dirPath, stream, batch)
 		if err != nil {
 			return err
 		}
@@ -261,62 +261,77 @@ func (s *Splitor) genRootClause(table string, node *Node) (clause string, err er
 	return
 }
 
-func (s *Splitor) writeToFile(table *types.Table, dirPath string, stream executor.RowStream) error {
+func (s *Splitor) writeToFile(table *types.Table, dirPath string, stream executor.RowStream, batch uint) (err error) {
 	filePath := path.Join(dirPath, fmt.Sprintf("%s.sql", strings.ToLower(table.Name.String())))
 	file, err := os.Create(filePath)
 	if err != nil {
-		return err
+		return
 	}
-	defer file.Close()
+	defer func() {
+		closeErr := file.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
+
+	if table.PrimaryKey == nil {
+		return fmt.Errorf("table %s has no primary key, cannot be filtered", table.Name)
+	}
+
+	pkIndex, ok := stream.ColumnsMap[table.PrimaryKey.Name.String()]
+	if !ok {
+		return fmt.Errorf("table %s has no column %s", table.Name, table.PrimaryKey.Name)
+	}
+
 	for {
-		var row executor.Row
-		row, err := stream.Next()
+		var rows []executor.Row
+		rows, err = stream.NextBatch(batch)
 		if err != nil {
-			return err
+			return
 		}
 
-		if row == nil {
-			return nil
+		if len(rows) == 0 {
+			return
 		}
+
+		valuesList := make([]string, 0, len(rows))
+
+		var filter bitarray.BitArray
 
 		if s.filterMap != nil {
-			if table.PrimaryKey == nil {
-				return fmt.Errorf("table %s has no primary key, cannot be filtered", table.Name)
-			}
-
-			index, ok := stream.ColumnsMap[table.PrimaryKey.Name.String()]
-			if !ok {
-				return fmt.Errorf("table %s has no column %s", table.Name, table.PrimaryKey.Name)
-			}
-
-			value := string(row[index])
-			pk, err := strconv.ParseUint(value, 10, 64)
-			if err != nil {
-				return fmt.Errorf("primary key %s of %s is not a invalid unsigned int, value: %s",
-					table.PrimaryKey.Name, table.Name, value,
-				)
-			}
-
-			// A sparse bit array never returns an error
-			filter := s.filterMap[table.Name.String()]
-			set, _ := filter.GetBit(pk)
-
-			if set {
-				continue
-			}
-
-			_ = filter.SetBit(pk)
+			filter = s.filterMap[table.Name.String()]
 		}
 
-		valueList := make([]string, 0, len(row))
-		for i, value := range row {
-			column := table.ColumnsMap[string(stream.Columns[i])]
-			valueList = append(valueList, generator.FormatValue(column.Type, value))
+		for _, row := range rows {
+			if filter != nil {
+				value := string(row[pkIndex])
+				pk, err := strconv.ParseUint(value, 10, 64)
+				if err != nil {
+					return fmt.Errorf("primary key %s of %s is not a invalid unsigned int, value: %s",
+						table.PrimaryKey.Name, table.Name, value,
+					)
+				}
+				// A sparse bit array never returns an error
+				set, _ := filter.GetBit(pk)
+				if set {
+					continue
+				}
+				_ = filter.SetBit(pk)
+			}
+
+			values := make([]string, 0, len(row))
+
+			for i, value := range row {
+				column := table.ColumnsMap[string(stream.Columns[i])]
+				values = append(values, generator.FormatValue(column.Type, value))
+			}
+
+			valuesList = append(valuesList, fmt.Sprintf("(%s)", strings.Join(values, ",")))
 		}
 
 		insertStmt := fmt.Sprintf(
-			"insert into %s values (%s);\n",
-			table.Name, strings.Join(valueList, ","),
+			"insert into %s values %s;\n",
+			table.Name, strings.Join(valuesList, ","),
 		)
 
 		_, err = file.WriteString(insertStmt)
