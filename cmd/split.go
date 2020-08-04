@@ -28,6 +28,7 @@ import (
 var (
 	group       string
 	slices      uint
+	batchSize   uint
 	useBitArray bool
 
 	groupKey *keymap.Key
@@ -54,9 +55,15 @@ var (
 				Value:       100,
 				Destination: &slices,
 			},
+			&cli.UintFlag{
+				Name:        "batch",
+				Aliases:     []string{"b"},
+				Usage:       "the `size` of batch insert",
+				Value:       100,
+				Destination: &batchSize,
+			},
 			&cli.BoolFlag{
 				Name:        "bitarray",
-				Aliases:     []string{"b"},
 				Usage:       "filter duplicated rows with a bitarray",
 				Destination: &useBitArray,
 			},
@@ -94,7 +101,7 @@ var (
 			for {
 				log.Infof("dumping slice (%d/%d)", id+1, splitor.Slices())
 
-				id, err = splitor.Next(path.Join(slicesDir, fmt.Sprintf("%d", id)))
+				id, err = splitor.Next(path.Join(slicesDir, fmt.Sprintf("%d", id)), batchSize)
 				if err != nil {
 					return err
 				}

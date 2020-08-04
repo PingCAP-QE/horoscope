@@ -15,6 +15,7 @@ package executor
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/jedib0t/go-pretty/table"
 )
@@ -68,6 +69,23 @@ func (s *RowStream) Next() (row Row, err error) {
 
 	for _, data := range dataSet {
 		row = append(row, *data.(*[]byte))
+	}
+	return
+}
+
+func (s *RowStream) NextBatch(size uint) (rows []Row, err error) {
+	if size == 0 {
+		err = fmt.Errorf("batch size cannot be zero")
+	}
+	rows = make([]Row, 0, size)
+	var row Row
+	for ; size > 0; size-- {
+		row, err = s.Next()
+		if err != nil || row == nil {
+			return
+		}
+
+		rows = append(rows, row)
 	}
 	return
 }
