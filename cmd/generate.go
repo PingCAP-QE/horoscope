@@ -69,9 +69,8 @@ var (
 			generator.SetAndOpWeight(andOpWeight)
 			return nil
 		},
-		After: rollback,
 		Action: func(context *cli.Context) error {
-			gen := generator.NewGenerator(Database, Exec)
+			gen := generator.NewGenerator(Database, Pool.Executor())
 			plans := make([]string, 0, planNums)
 			for i := 0; i < planNums; i++ {
 				stmt, err := gen.SelectStmt(genOptions)

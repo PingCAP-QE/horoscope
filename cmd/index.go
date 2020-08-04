@@ -89,7 +89,6 @@ var (
 				Action: clean,
 			},
 		},
-		After: commit,
 	}
 )
 
@@ -159,7 +158,7 @@ func apply(path string) error {
 	for _, query := range strings.Split(sql, "\n") {
 		if query != "" {
 			log.WithField("query", query).Info("Executing...")
-			_, err = Exec.Exec(query)
+			_, err = Pool.Executor().Exec(query)
 			if err != nil {
 				log.WithField("query", query).Warnf("fails to execute: %s", err.Error())
 			}

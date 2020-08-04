@@ -35,7 +35,6 @@ var (
 		Name:   "card",
 		Usage:  "test the cardinality estimations",
 		Action: testCard,
-		After:  rollback,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "columns",
@@ -71,7 +70,7 @@ func testCard(*cli.Context) error {
 		}
 		tableColumns[table] = append(tableColumns[table], column)
 	}
-	cardinalitor = horoscope.NewCardinalitor(Exec, tableColumns, horoscope.CardinalityQueryType(typ), timeout)
+	cardinalitor = horoscope.NewCardinalitor(Pool.Executor(), tableColumns, horoscope.CardinalityQueryType(typ), timeout)
 	result, err := cardinalitor.Test()
 	if err != nil {
 		return err

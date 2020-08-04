@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/pingcap/tidb/types/parser_driver"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -36,10 +37,14 @@ var (
 	jsonFormatter bool
 	logFile       string
 	verbose       string
+	poolOptions   executor.PoolOptions
 
-	/// components
-	Exec     executor.Executor
+	/// pre initialized components
+	Pool     executor.Pool
 	Database *types.Database
+
+	/// needs initialized by subcommand
+	Tx executor.Transaction
 )
 
 func main() {
@@ -81,17 +86,35 @@ func main() {
 				Usage:       "set `LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
 				Destination: &verbose,
 			},
+			&cli.UintFlag{
+				Name:        "max-open-conns",
+				Value:       100,
+				Usage:       "the max `numbers` of connections",
+				Destination: &poolOptions.MaxOpenConns,
+			},
+			&cli.UintFlag{
+				Name:        "max-idle-conns",
+				Value:       20,
+				Usage:       "the max `numbers` of idle connections",
+				Destination: &poolOptions.MaxIdleConns,
+			},
+			&cli.UintFlag{
+				Name:        "max-lifetime",
+				Value:       10,
+				Usage:       "the max `seconds` of connections lifetime",
+				Destination: &poolOptions.MaxLifeSeconds,
+			},
 		},
 		Before: func(context *cli.Context) (err error) {
 			if err = setupLogger(); err != nil {
 				return
 			}
-			Exec, err = executor.NewExecutor(dsn)
+			Pool, err = executor.NewPool(dsn, &poolOptions)
 			if err != nil {
 				return
 			}
 
-			Database, err = InitDatabase(Exec)
+			Database, err = InitDatabase(Pool.Executor())
 			return
 		},
 		Commands: cli.Commands{
@@ -162,10 +185,15 @@ func InitDatabase(exec executor.Executor) (database *types.Database, err error) 
 	return
 }
 
+func initTx(*cli.Context) (err error) {
+	Tx, err = Pool.Transaction()
+	return err
+}
+
 func commit(*cli.Context) error {
-	return Exec.Commit()
+	return Tx.Rollback()
 }
 
 func rollback(*cli.Context) error {
-	return Exec.Rollback()
+	return Tx.Rollback()
 }
