@@ -6,11 +6,11 @@ horoscope is an optimizer inspector for DBMS.
 
 1. Run TiDB
 
-    Recommand [TiUP](https://tiup.io).
+    Recommend [TiUP](https://tiup.io).
 
 2. Initialize TPCH Database
 
-    Recommand [go-tpc](https://github.com/pingcap/go-tpc).
+    Recommend [go-tpc](https://github.com/pingcap/go-tpc).
     ```bash
     git clone https://github.com/pingcap/go-tpc.git
     cd go-tpc
