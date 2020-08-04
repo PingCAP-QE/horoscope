@@ -17,39 +17,89 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type (
 	QueryMode uint8
-	Executor  interface {
+
+	Pool interface {
+		Executor() Executor
+		Transaction() (Transaction, error)
+	}
+
+	RawExecutor interface {
+		Query(query string, args ...interface{}) (*sql.Rows, error)
+		Exec(query string, args ...interface{}) (sql.Result, error)
+	}
+
+	RawTransaction interface {
+		RawExecutor
+		Commit() error
+		Rollback() error
+	}
+
+	Executor interface {
 		Query(query string) (Rows, error)
 		QueryStream(query string) (RowStream, error)
 		Exec(query string) (Result, error)
 		GetHints(query string) (Hints, error)
 		Explain(query string) (Rows, []error, error)
 		ExplainAnalyze(query string) (Rows, []error, error)
+	}
+
+	Transaction interface {
+		Executor
 		Commit() error
 		Rollback() error
 	}
 
-	TxExecutor struct {
-		tx *sql.Tx
+	PoolOptions struct {
+		MaxOpenConns, MaxIdleConns, MaxLifeSeconds uint
+	}
+
+	PoolImpl struct {
+		db *sql.DB
+	}
+
+	ExecutorImpl struct {
+		exec RawExecutor
+	}
+
+	TransactionImpl struct {
+		ExecutorImpl
+		tx RawTransaction
 	}
 )
 
-func NewExecutor(dsn string) (exec Executor, err error) {
+func NewPool(dsn string, options *PoolOptions) (pool Pool, err error) {
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return
 	}
-	tx, err := db.Begin()
-	return &TxExecutor{tx: tx}, err
+
+	if options.MaxOpenConns != 0 {
+		db.SetMaxOpenConns(int(options.MaxOpenConns))
+	}
+
+	if options.MaxIdleConns != 0 {
+		db.SetMaxIdleConns(int(options.MaxIdleConns))
+	}
+
+	if options.MaxLifeSeconds != 0 {
+		db.SetConnMaxLifetime(time.Second * time.Duration(options.MaxLifeSeconds))
+	}
+
+	pool = &PoolImpl{
+		db: db,
+	}
+	return pool, err
 }
 
-func (e *TxExecutor) Query(query string) (rows Rows, err error) {
-	data, err := e.tx.Query(query)
+func (e *ExecutorImpl) Query(query string) (rows Rows, err error) {
+	data, err := e.exec.Query(query)
 	if err != nil {
 		return
 	}
@@ -57,8 +107,8 @@ func (e *TxExecutor) Query(query string) (rows Rows, err error) {
 	return
 }
 
-func (e *TxExecutor) QueryStream(query string) (stream RowStream, err error) {
-	data, err := e.tx.Query(query)
+func (e *ExecutorImpl) QueryStream(query string) (stream RowStream, err error) {
+	data, err := e.exec.Query(query)
 	if err != nil {
 		return
 	}
@@ -66,8 +116,8 @@ func (e *TxExecutor) QueryStream(query string) (stream RowStream, err error) {
 	return
 }
 
-func (e *TxExecutor) Exec(query string) (result Result, err error) {
-	data, err := e.tx.Exec(query)
+func (e *ExecutorImpl) Exec(query string) (result Result, err error) {
+	data, err := e.exec.Exec(query)
 	if err != nil {
 		return
 	}
@@ -76,9 +126,9 @@ func (e *TxExecutor) Exec(query string) (result Result, err error) {
 }
 
 /// GetHints would query plan out of range warnings
-func (e *TxExecutor) GetHints(query string) (hints Hints, err error) {
+func (e *ExecutorImpl) GetHints(query string) (hints Hints, err error) {
 	explanation := fmt.Sprintf("explain format = 'hint' %s", query)
-	rawRows, err := e.tx.Query(explanation)
+	rawRows, err := e.exec.Query(explanation)
 	if err != nil {
 		return
 	}
@@ -99,7 +149,7 @@ func (e *TxExecutor) GetHints(query string) (hints Hints, err error) {
 	return
 }
 
-func (e *TxExecutor) Explain(query string) (rows Rows, warnings []error, err error) {
+func (e *ExecutorImpl) Explain(query string) (rows Rows, warnings []error, err error) {
 	rows, err = e.Query(fmt.Sprintf("EXPLAIN %s", query))
 	if err != nil {
 		err = fmt.Errorf("explain error: %v", err)
@@ -109,7 +159,7 @@ func (e *TxExecutor) Explain(query string) (rows Rows, warnings []error, err err
 	return
 }
 
-func (e *TxExecutor) ExplainAnalyze(query string) (rows Rows, warnings []error, err error) {
+func (e *ExecutorImpl) ExplainAnalyze(query string) (rows Rows, warnings []error, err error) {
 	rows, err = e.Query(fmt.Sprintf("EXPLAIN ANALYZE %s", query))
 	if err != nil {
 		err = fmt.Errorf("explain error: %v", err)
@@ -119,8 +169,8 @@ func (e *TxExecutor) ExplainAnalyze(query string) (rows Rows, warnings []error, 
 	return
 }
 
-func (e *TxExecutor) queryWarnings() (warnings []error, err error) {
-	data, err := e.tx.Query("SHOW WARNINGS;")
+func (e *ExecutorImpl) queryWarnings() (warnings []error, err error) {
+	data, err := e.exec.Query("SHOW WARNINGS;")
 	if err != nil {
 		return
 	}
@@ -142,10 +192,19 @@ func (e *TxExecutor) queryWarnings() (warnings []error, err error) {
 	return
 }
 
-func (e *TxExecutor) Commit() error {
-	return e.tx.Commit()
+func (t *TransactionImpl) Commit() error {
+	return t.tx.Commit()
 }
 
-func (e *TxExecutor) Rollback() error {
-	return e.tx.Rollback()
+func (t *TransactionImpl) Rollback() error {
+	return t.tx.Rollback()
+}
+
+func (p *PoolImpl) Executor() Executor {
+	return &ExecutorImpl{exec: p.db}
+}
+
+func (p *PoolImpl) Transaction() (Transaction, error) {
+	tx, err := p.db.Begin()
+	return &TransactionImpl{ExecutorImpl: ExecutorImpl{exec: tx}, tx: tx}, err
 }

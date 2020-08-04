@@ -59,7 +59,7 @@ var explainCommand = &cli.Command{
 			return err
 		}
 
-		rows, warnings, err := Exec.ExplainAnalyze(plan)
+		rows, warnings, err := Pool.Executor().ExplainAnalyze(plan)
 		if err != nil {
 			return err
 		}
@@ -71,5 +71,4 @@ var explainCommand = &cli.Command{
 		fmt.Println(rows.String())
 		return nil
 	},
-	After: rollback,
 }

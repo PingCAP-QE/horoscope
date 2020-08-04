@@ -35,7 +35,6 @@ var hintCommand = &cli.Command{
 			Destination: &planID,
 		},
 	},
-	After: rollback,
 	Action: func(context *cli.Context) error {
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("tidb> ")
@@ -59,7 +58,7 @@ var hintCommand = &cli.Command{
 			return err
 		}
 
-		explainHints, err := Exec.GetHints(plan)
+		explainHints, err := Pool.Executor().GetHints(plan)
 		if err != nil {
 			return err
 		}

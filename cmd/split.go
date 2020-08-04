@@ -68,19 +68,23 @@ var (
 				Destination: &useBitArray,
 			},
 		},
-		Before: func(*cli.Context) (err error) {
+		Before: func(ctx *cli.Context) (err error) {
 			if group != "" {
 				groupKey, err = keymap.ParseKey(group)
 			}
-			return
+			if err != nil {
+				return
+			}
+			return initTx(ctx)
 		},
+		After: rollback,
 		Action: func(context *cli.Context) (err error) {
 			keymaps, err := keymap.ParseFile(keymapPath)
 			if err != nil {
 				return err
 			}
 
-			splitor, err := split_data.Split(Exec, Database, keymaps, groupKey, int(slices), useBitArray)
+			splitor, err := split_data.Split(Tx, Database, keymaps, groupKey, int(slices), useBitArray)
 
 			if err != nil {
 				return err
@@ -110,6 +114,5 @@ var (
 				}
 			}
 		},
-		After: rollback,
 	}
 )

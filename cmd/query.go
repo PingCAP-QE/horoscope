@@ -63,7 +63,7 @@ var (
 				return err
 			}
 
-			horo := horoscope.NewHoroscope(Exec, loader.NoopLoader{}, true)
+			horo := horoscope.NewHoroscope(Pool.Executor(), loader.NoopLoader{}, true)
 			dur, rows, err := horo.RunSQLWithTime(round, plan, tp)
 			if err != nil {
 				return err
@@ -73,6 +73,5 @@ var (
 			fmt.Printf("%s\nComplete in %vms", rows[0].String(), dur.Values)
 			return nil
 		},
-		After: rollback,
 	}
 )

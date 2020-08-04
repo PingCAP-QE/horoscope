@@ -35,6 +35,7 @@ var (
 		Name:   "bench",
 		Usage:  "Bench the optimizer",
 		Action: bench,
+		Before: initTx,
 		After:  rollback,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -79,7 +80,7 @@ func bench(*cli.Context) error {
 		return err
 	}
 
-	horo := horoscope.NewHoroscope(Exec, newLoader, enableCollectCardError)
+	horo := horoscope.NewHoroscope(Tx, newLoader, enableCollectCardError)
 	var collection horoscope.BenchCollection
 	for {
 		benches, err := horo.Next(round, needVerify)
@@ -149,7 +150,7 @@ func prepare(workloadDir string) error {
 	if err != nil {
 		return fmt.Errorf("read file %s error: %v", file, err)
 	}
-	_, err = Exec.Exec(string(sqls))
+	_, err = Pool.Executor().Exec(string(sqls))
 	if err != nil {
 		return fmt.Errorf("exec prepare statements error: %v", err)
 	}
