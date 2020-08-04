@@ -26,14 +26,16 @@ var descriptionColumns = executor.Row{[]byte("Field"), []byte("Type"), []byte("N
 
 // Table defines database table
 type Table struct {
-	PrimaryKey *Column
+	DBName     model.CIStr
 	Name       model.CIStr
+	PrimaryKey *Column
 	Columns    []*Column
 	ColumnsMap map[string]*Column
 }
 
-func PrepareTable(name string) *Table {
+func PrepareTable(dbName, name string) *Table {
 	return &Table{
+		DBName:     model.NewCIStr(dbName),
 		Name:       model.NewCIStr(name),
 		Columns:    make([]*Column, 0),
 		ColumnsMap: make(map[string]*Column),

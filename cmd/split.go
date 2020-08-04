@@ -94,7 +94,7 @@ var (
 			for {
 				log.Infof("dumping slice (%d/%d)", id+1, splitor.Slices())
 
-				id, err = splitor.Next(path.Join(slicesDir, fmt.Sprintf("%d.sql", id)))
+				id, err = splitor.Next(path.Join(slicesDir, fmt.Sprintf("%d", id)))
 				if err != nil {
 					return err
 				}

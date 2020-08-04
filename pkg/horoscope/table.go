@@ -31,6 +31,7 @@ type Row struct {
 	QueryId        string
 	Query          string
 	PlanSpaceCount int
+	DefaultPlanId  int
 	DefaultPlanDur string
 	BestPlanDur    string
 	OptimalPlan    []string
@@ -40,7 +41,7 @@ type Row struct {
 
 func (r *Row) toTableRows() table.Row {
 	var row table.Row
-	row = append(row, r.QueryId, r.PlanSpaceCount, r.DefaultPlanDur, r.BestPlanDur,
+	row = append(row, r.QueryId, r.PlanSpaceCount, fmt.Sprintf("%2d: %s", r.DefaultPlanId, r.DefaultPlanDur), r.BestPlanDur,
 		fmt.Sprintf("%.1f%%", r.Effectiveness*100), strings.Join(r.OptimalPlan, ","), strings.Join(r.EstRowsQError, " "), r.Query)
 	return row
 }
@@ -79,6 +80,7 @@ func (c *BenchCollection) Table() Table {
 			QueryId:        b.QueryID,
 			Query:          b.DefaultPlan.SQL,
 			PlanSpaceCount: len(b.Plans),
+			DefaultPlanId:  int(b.DefaultPlan.Plan),
 			DefaultPlanDur: b.DefaultPlan.Cost.format(),
 			BestPlanDur:    bestPlan.Cost.format(),
 			OptimalPlan:    optimalPlan,

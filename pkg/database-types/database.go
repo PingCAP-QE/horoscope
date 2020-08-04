@@ -35,12 +35,13 @@ func LoadDatabase(rawName, tables executor.Rows) (db *Database, err error) {
 		err = errors.New(fmt.Sprintf("Invalid tables\n%s", tables.String()))
 		return
 	}
+	dbName := string(rawName.Data[0][0])
 	db = &Database{
-		Name:       string(rawName.Data[0][0]),
+		Name:       dbName,
 		BaseTables: make(map[string]*Table),
 	}
 	for _, row := range tables.Data {
-		db.BaseTables[string(row[0])] = PrepareTable(string(row[0]))
+		db.BaseTables[string(row[0])] = PrepareTable(dbName, string(row[0]))
 	}
 	return
 }
