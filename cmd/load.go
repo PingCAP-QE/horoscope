@@ -69,15 +69,18 @@ var (
 								return err
 							}
 							queryCounter++
+							queryId := queryCounter
+
 							query := scanner.Text()
 							taskChan <- struct{}{}
 							eg.Go(func() error {
 								defer func() {
 									<-taskChan
 								}()
+
 								_, err := Pool.Executor().Exec(query)
 								if err != nil {
-									err = fmt.Errorf("error in file `%s`, row(%d): %s", path, queryCounter, err.Error())
+									err = fmt.Errorf("error in file `%s`, row(%d): %s", path, queryId, err.Error())
 								}
 								return err
 							})
