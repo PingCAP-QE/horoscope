@@ -14,8 +14,9 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,26 +52,39 @@ var (
 					return err
 				}
 				if strings.HasSuffix(path, ".sql") && !info.IsDir() {
-					data, err := ioutil.ReadFile(path)
-					if err != nil {
-						return fmt.Errorf("read file %s error: %v", path, err)
-					}
+					eg.Go(func() error {
+						file, err := os.Open(path)
+						if err != nil {
+							return fmt.Errorf("read file %s error: %v", path, err)
+						}
 
-					log.Infof("loading file %s", path)
-					for i, query := range strings.Split(string(data), ";") {
-						newQuery := query
-						taskChan <- struct{}{}
-						eg.Go(func() error {
-							defer func() {
-								<-taskChan
-							}()
-							_, err := Pool.Executor().Exec(newQuery)
-							if err != nil {
-								err = fmt.Errorf("error in file `%s`, row(%d): %s", path, i, err.Error())
+						scanner := bufio.NewScanner(file)
+						scanner.Split(ScanQuery)
+
+						log.Infof("loading file %s", path)
+
+						queryCounter := 0
+
+						for scanner.Scan() {
+							if err = scanner.Err(); err != nil {
+								return err
 							}
-							return err
-						})
-					}
+							queryCounter++
+							query := scanner.Text()
+							taskChan <- struct{}{}
+							eg.Go(func() error {
+								defer func() {
+									<-taskChan
+								}()
+								_, err := Pool.Executor().Exec(query)
+								if err != nil {
+									err = fmt.Errorf("error in file `%s`, row(%d): %s", path, queryCounter, err.Error())
+								}
+								return err
+							})
+						}
+						return nil
+					})
 				}
 				return nil
 			})
@@ -82,3 +96,19 @@ var (
 		},
 	}
 )
+
+func ScanQuery(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	if i := bytes.IndexByte(data, ';'); i >= 0 {
+		// We have a full newline-terminated line.
+		return i + 1, data[0:i], nil
+	}
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if atEOF {
+		return len(data), data, nil
+	}
+	// Request more data.
+	return 0, nil, nil
+}
