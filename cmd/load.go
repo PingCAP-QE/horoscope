@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 )
@@ -54,7 +55,9 @@ var (
 					if err != nil {
 						return fmt.Errorf("read file %s error: %v", path, err)
 					}
-					for _, query := range strings.Split(string(data), ";") {
+
+					log.Infof("loading file %s", path)
+					for i, query := range strings.Split(string(data), ";") {
 						newQuery := query
 						taskChan <- struct{}{}
 						eg.Go(func() error {
@@ -62,10 +65,12 @@ var (
 								<-taskChan
 							}()
 							_, err := Pool.Executor().Exec(newQuery)
+							if err != nil {
+								err = fmt.Errorf("error in file `%s`, row(%d): %s", path, i, err.Error())
+							}
 							return err
 						})
 					}
-
 				}
 				return nil
 			})
