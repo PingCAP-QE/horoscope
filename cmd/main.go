@@ -127,6 +127,7 @@ func main() {
 			indexCommand,
 			cardCommand,
 			splitCommand,
+			loadCommand,
 		},
 	}
 
