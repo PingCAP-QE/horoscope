@@ -85,6 +85,8 @@ var (
 								return err
 							})
 						}
+
+						log.Debugf("file %s; query counter %d", path, queryCounter)
 						return nil
 					})
 				}
