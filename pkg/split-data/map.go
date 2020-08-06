@@ -16,7 +16,7 @@ package split_data
 import (
 	"fmt"
 
-	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
 )
 
@@ -24,7 +24,7 @@ type (
 	Maps map[string]*Node
 
 	Node struct {
-		table *types.Table
+		table *database.Table
 		links []*Link
 	}
 
@@ -68,7 +68,7 @@ func (n *Node) search(tableName string) *Node {
 	return nil
 }
 
-func BuildMaps(db *types.Database, mapList []keymap.KeyMap, groupKey *keymap.Key) (maps Maps, err error) {
+func BuildMaps(db *database.Database, mapList []keymap.KeyMap, groupKey *keymap.Key) (maps Maps, err error) {
 	if err = checkKeymaps(db, mapList); err != nil {
 		return
 	}
@@ -125,7 +125,7 @@ func (m Maps) prune(root string) {
 
 }
 
-func checkKeymaps(db *types.Database, maps []keymap.KeyMap) error {
+func checkKeymaps(db *database.Database, maps []keymap.KeyMap) error {
 	for _, kp := range maps {
 		if err := checkKey(db, kp.PrimaryKey); err != nil {
 			return nil
@@ -139,7 +139,7 @@ func checkKeymaps(db *types.Database, maps []keymap.KeyMap) error {
 	return nil
 }
 
-func checkKey(db *types.Database, key *keymap.Key) error {
+func checkKey(db *database.Database, key *keymap.Key) error {
 	if table := db.BaseTables[key.Table]; table == nil || table.ColumnsMap[key.Column] == nil {
 		return fmt.Errorf("key `%s` not exists", key)
 	}

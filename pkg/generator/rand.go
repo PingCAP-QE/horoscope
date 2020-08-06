@@ -20,6 +20,9 @@ import (
 	"time"
 
 	"github.com/pingcap/tidb/types"
+
+	"github.com/chaos-mesh/horoscope/pkg/database"
+	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
 var (
@@ -180,5 +183,101 @@ func FormatValue(tp *types.FieldType, value []byte) string {
 		return string(value)
 	default:
 		return FormatStringLiteral(string(value))
+	}
+}
+
+func RdValue(exec executor.Executor, column *database.Column) (value string, err error) {
+	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY RAND() LIMIT 1", column.Name.String(), column.Table.Name.String())
+	rows, err := exec.Query(query)
+	if err != nil {
+		return
+	}
+
+	if rows.RowCount() == 0 {
+		err = fmt.Errorf("table %s is empty", column.Table)
+		return
+	}
+
+	value = FormatValue(column.Type, rows.Data[0][0])
+	return
+}
+
+func RdGreaterValue(exec executor.Executor, column *database.Column, less []byte) (value string, err error) {
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s > %s ORDER BY RAND() LIMIT 1",
+		column.Name.String(), column.Table.Name.String(), column.Name.String(), FormatValue(column.Type, less),
+	)
+	rows, err := exec.Query(query)
+	if err != nil {
+		return
+	}
+
+	if rows.RowCount() == 0 {
+		err = fmt.Errorf("there is no %s greater than %s", column, FormatValue(column.Type, less))
+		return
+	}
+	value = FormatValue(column.Type, rows.Data[0][0])
+	return
+}
+
+func RdLessValue(exec executor.Executor, column *database.Column, less []byte) (value string, err error) {
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s < %s ORDER BY RAND() LIMIT 1",
+		column.Name.String(), column.Table.Name.String(), column.Name.String(), FormatValue(column.Type, less),
+	)
+	rows, err := exec.Query(query)
+	if err != nil {
+		return
+	}
+
+	if rows.RowCount() == 0 {
+		err = fmt.Errorf("there is no %s less than %s", column, FormatValue(column.Type, less))
+		return
+	}
+	value = FormatValue(column.Type, rows.Data[0][0])
+	return
+}
+
+func RdNotEqualValue(exec executor.Executor, column *database.Column, value []byte) (other string, err error) {
+	other, err = RdLessValue(exec, column, value)
+	if err == nil {
+		return
+	}
+	other, err = RdGreaterValue(exec, column, value)
+	if err == nil {
+		return
+	}
+	err = fmt.Errorf("there is no value in %s other than %s", column, FormatValue(column.Type, value))
+	return
+}
+
+func RdInRange(column *database.Column, value []byte, exec executor.Executor) (rg string, err error) {
+	const MaxAdditional = 10
+	list := []string{FormatValue(column.Type, value)}
+
+	for i := 0; i < Rd(MaxAdditional); i++ {
+		var val string
+		val, err = RdValue(exec, column)
+		if err != nil {
+			return
+		}
+		list = append(list, val)
+	}
+
+	rg = strings.Join(list, ",")
+	return
+}
+
+func RdExpr(exec executor.Executor, column *database.Column, value []byte) string {
+	opList := make([]CmpOperator, 0)
+	for _, op := range Ops {
+		if op.Suit(column.Type, value) {
+			opList = append(opList, op)
+		}
+	}
+
+	for {
+		randOp := opList[Rd(len(opList))]
+		if expr := randOp.RdExpr(column, value, exec); expr != "" {
+			return expr
+		}
 	}
 }
