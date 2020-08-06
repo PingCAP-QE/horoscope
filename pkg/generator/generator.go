@@ -58,7 +58,12 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 					if expr != "" {
 						expr += fmt.Sprintf(" %s ", RdLogicOp())
 					}
-					expr += fmt.Sprintf("(%s <=> %s OR %s %s %s)", column.String(), values[j], column.String(), RdComparisionOp(), values[j])
+					value := values[j]
+					if value == "NULL" {
+						expr += fmt.Sprintf("(%s is NULL)", column.String())
+					} else {
+						expr += fmt.Sprintf("(%s %s %s)", column.String(), RdComparisionOp(), value)
+					}
 				}
 				exprGroup = append(exprGroup, expr)
 			}
