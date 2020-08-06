@@ -26,27 +26,29 @@ import (
 )
 
 var (
+	dataSource string
+
 	loadCommand = &cli.Command{
 		Name:  "load",
 		Usage: "Load data in a directory",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:        "workload",
-				Aliases:     []string{"w"},
-				Usage:       "specify the workload `DIR`",
+				Name:        "data-source",
+				Aliases:     []string{"d"},
+				Usage:       "specify the data source `DIR`",
 				Required:    true,
-				Destination: &workloadDir,
+				Destination: &dataSource,
 			},
 		},
 		Action: func(context *cli.Context) error {
-			if !pathExist(workloadDir) {
-				return fmt.Errorf("directory %s not exists", workloadDir)
+			if !pathExist(dataSource) {
+				return fmt.Errorf("directory %s not exists", dataSource)
 			}
 
 			taskChan := make(chan struct{}, poolOptions.MaxOpenConns)
 			var eg errgroup.Group
 
-			err := filepath.Walk(workloadDir, func(path string, info os.FileInfo, err error) error {
+			err := filepath.Walk(dataSource, func(path string, info os.FileInfo, err error) error {
 				if err != nil {
 					return err
 				}
