@@ -112,38 +112,38 @@ func (op CmpOperator) RdExpr(column *database.Column, value []byte, exec executo
 
 	switch op {
 	case Equal:
-		expr = fmt.Sprintf("%s = %s", column.Name, FormatValue(column.Type, value))
+		expr = fmt.Sprintf("%s = %s", column, FormatValue(column.Type, value))
 	case NullSafeEqual:
-		expr = fmt.Sprintf("%s <=> %s", column.Name, FormatValue(column.Type, value))
+		expr = fmt.Sprintf("%s <=> %s", column, FormatValue(column.Type, value))
 	case In:
 		var rg string
 		rg, err = RdInRange(column, value, exec)
 		if err != nil {
 			break
 		}
-		expr = fmt.Sprintf("%s IN (%s)", column.Name, rg)
+		expr = fmt.Sprintf("%s IN (%s)", column, rg)
 	case IsNull:
-		expr = fmt.Sprintf("%s IS NULL", column.Name)
+		expr = fmt.Sprintf("%s IS NULL", column)
 	case IsNotNull:
-		expr = fmt.Sprintf("%s IS NOT NULL", column.Name)
+		expr = fmt.Sprintf("%s IS NOT NULL", column)
 	case Greater:
 		var cmpValue string
 		cmpValue, err = RdLessValue(exec, column, value)
 		if err != nil {
 			break
 		}
-		expr = fmt.Sprintf("%s > %s", column.Name, cmpValue)
+		expr = fmt.Sprintf("%s > %s", column, cmpValue)
 	case Less:
 		var cmpValue string
 		cmpValue, err = RdGreaterValue(exec, column, value)
 		if err != nil {
 			break
 		}
-		expr = fmt.Sprintf("%s < %s", column.Name, cmpValue)
+		expr = fmt.Sprintf("%s < %s", column, cmpValue)
 	case GreaterEqual:
-		expr = fmt.Sprintf("%s >= %s", column.Name, FormatValue(column.Type, value))
+		expr = fmt.Sprintf("%s >= %s", column, FormatValue(column.Type, value))
 	case LessEqual:
-		expr = fmt.Sprintf("%s <= %s", column.Name, FormatValue(column.Type, value))
+		expr = fmt.Sprintf("%s <= %s", column, FormatValue(column.Type, value))
 	case Between:
 		var lessValue string
 		var greaterValue string
@@ -155,24 +155,24 @@ func (op CmpOperator) RdExpr(column *database.Column, value []byte, exec executo
 		if err != nil {
 			break
 		}
-		expr = fmt.Sprintf("%s BETWEEN %s AND %s", column.Name, lessValue, greaterValue)
+		expr = fmt.Sprintf("%s BETWEEN %s AND %s", column, lessValue, greaterValue)
 	case NotEqual:
 		var cmpValue string
 		cmpValue, err = RdNotEqualValue(exec, column, value)
 		if err != nil {
 			break
 		}
-		expr = fmt.Sprintf("%s != %s", column.Name, cmpValue)
+		expr = fmt.Sprintf("%s != %s", column, cmpValue)
 	case NotEqual2:
 		var cmpValue string
 		cmpValue, err = RdNotEqualValue(exec, column, value)
 		if err != nil {
 			break
 		}
-		expr = fmt.Sprintf("%s <> %s", column.Name, cmpValue)
+		expr = fmt.Sprintf("%s <> %s", column, cmpValue)
 	case Like:
 		pattern := append(value[:Rd(len(value))], '%')
-		expr = fmt.Sprintf("%s LIKE %s", column.Name, FormatValue(column.Type, pattern))
+		expr = fmt.Sprintf("%s LIKE %s", column, FormatValue(column.Type, pattern))
 	}
 
 	if err != nil {
