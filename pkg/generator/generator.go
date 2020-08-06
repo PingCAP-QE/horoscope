@@ -110,7 +110,8 @@ func (g *Generator) RdOrderBy(tableColumns [][]*database.Column, count uint) []s
 	rand.Shuffle(len(cols), func(i, j int) {
 		cols[i], cols[j] = cols[j], cols[i]
 	})
-	elemLen := rand.Intn(int(math.Min(float64(count), float64(len(cols)))))
+	min := int(math.Min(float64(count), float64(len(cols)))) + 1
+	elemLen := Rd(min)
 	return cols[:elemLen]
 }
 
