@@ -19,13 +19,13 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
 type (
 	Generator struct {
-		db   *types.Database
+		db   *database.Database
 		exec executor.Executor
 	}
 
@@ -35,7 +35,7 @@ type (
 	}
 )
 
-func NewGenerator(db *types.Database, exec executor.Executor) *Generator {
+func NewGenerator(db *database.Database, exec executor.Executor) *Generator {
 	return &Generator{
 		db:   db,
 		exec: exec,
@@ -58,12 +58,7 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 					if expr != "" {
 						expr += fmt.Sprintf(" %s ", RdLogicOp())
 					}
-					value := values[j]
-					if value == "NULL" {
-						expr += fmt.Sprintf("(%s is NULL)", column.String())
-					} else {
-						expr += fmt.Sprintf("(%s %s %s)", column.String(), RdComparisionOp(), value)
-					}
+					expr += RdExpr(g.exec, column, values[j])
 				}
 				exprGroup = append(exprGroup, expr)
 			}
@@ -84,12 +79,12 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 	return selectStmt, nil
 }
 
-func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*types.Column) {
+func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*database.Column) {
 	tableNums := Rd(maxTables) + 1
-	columnsList := make([][]*types.Column, 0)
+	columnsList := make([][]*database.Column, 0)
 	tables := make([]string, 0, tableNums)
 	for tableName, table := range g.db.BaseTables {
-		columns := make([]*types.Column, 0)
+		columns := make([]*database.Column, 0)
 		tableNums--
 		if tableNums < 0 {
 			break
@@ -105,7 +100,7 @@ func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*types.Colu
 	return tables, columnsList
 }
 
-func (g *Generator) RdOrderBy(tableColumns [][]*types.Column, count uint) []string {
+func (g *Generator) RdOrderBy(tableColumns [][]*database.Column, count uint) []string {
 	var cols []string
 	for _, columns := range tableColumns {
 		for _, column := range columns {
@@ -119,19 +114,9 @@ func (g *Generator) RdOrderBy(tableColumns [][]*types.Column, count uint) []stri
 	return cols[:elemLen]
 }
 
-func (g *Generator) RdValue(column *types.Column) (value string, err error) {
-	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY RAND() LIMIT 1", column.Name.String(), column.Table.Name.String())
-	rows, err := g.exec.Query(query)
-	if err != nil {
-		return
-	}
-	value = FormatValue(column.Type, rows.Data[0][0])
-	return
-}
-
-func (g *Generator) RdValues(table string, columns []*types.Column) (values []string, err error) {
+func (g *Generator) RdValues(table string, columns []*database.Column) (values [][]byte, err error) {
 	columnNames := make([]string, 0, len(columns))
-	values = make([]string, 0, len(columns))
+	values = make([][]byte, 0, len(columns))
 	for _, column := range columns {
 		columnNames = append(columnNames, column.Name.String())
 	}
@@ -140,8 +125,8 @@ func (g *Generator) RdValues(table string, columns []*types.Column) (values []st
 	if err != nil {
 		return
 	}
-	for i, value := range rows.Data[0] {
-		values = append(values, FormatValue(columns[i].Type, value))
+	for _, value := range rows.Data[0] {
+		values = append(values, value)
 	}
 	return
 }
