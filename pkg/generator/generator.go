@@ -18,6 +18,7 @@ import (
 	"math"
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
@@ -30,8 +31,9 @@ type (
 	}
 
 	Options struct {
-		MaxTables int
-		Limit     int
+		MaxTables            int
+		MinDurationThreshold time.Duration
+		Limit                int
 	}
 )
 
