@@ -22,7 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
-	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
@@ -41,7 +41,7 @@ var (
 
 	/// pre initialized components
 	Pool     executor.Pool
-	Database *types.Database
+	Database *database.Database
 
 	/// needs initialized by subcommand
 	Tx executor.Transaction
@@ -159,7 +159,7 @@ func setupLogger() error {
 	return nil
 }
 
-func InitDatabase(exec executor.Executor) (database *types.Database, err error) {
+func InitDatabase(exec executor.Executor) (db *database.Database, err error) {
 	dbName, err := exec.Query("SELECT DATABASE()")
 	if err != nil {
 		return
@@ -168,11 +168,11 @@ func InitDatabase(exec executor.Executor) (database *types.Database, err error) 
 	if err != nil {
 		return
 	}
-	database, err = types.LoadDatabase(dbName, tables)
+	db, err = database.LoadDatabase(dbName, tables)
 	if err != nil {
 		return
 	}
-	for name, table := range database.BaseTables {
+	for name, table := range db.BaseTables {
 		var columns executor.Rows
 		columns, err = exec.Query(fmt.Sprintf("DESC %s", name))
 		if err != nil {

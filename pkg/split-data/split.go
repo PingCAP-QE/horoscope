@@ -23,7 +23,7 @@ import (
 	"github.com/golang-collections/go-datastructures/bitarray"
 	log "github.com/sirupsen/logrus"
 
-	types "github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
@@ -35,13 +35,13 @@ type Splitor struct {
 	groupValues  [][]byte
 	slices       int
 	exec         executor.Executor
-	db           *types.Database
+	db           *database.Database
 	maps         Maps
 	sliceSizeMap map[string]int
 	filterMap    map[string]bitarray.BitArray
 }
 
-func Split(exec executor.Executor, db *types.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int, useBitArray bool) (splitor *Splitor, err error) {
+func Split(exec executor.Executor, db *database.Database, maps []keymap.KeyMap, groupKey *keymap.Key, slices int, useBitArray bool) (splitor *Splitor, err error) {
 	splitor = &Splitor{
 		groupKey:     groupKey,
 		db:           db,
@@ -261,7 +261,7 @@ func (s *Splitor) genRootClause(table string, node *Node) (clause string, err er
 	return
 }
 
-func (s *Splitor) writeToFile(table *types.Table, dirPath string, stream executor.RowStream, batch uint) (err error) {
+func (s *Splitor) writeToFile(table *database.Table, dirPath string, stream executor.RowStream, batch uint) (err error) {
 	filePath := path.Join(dirPath, fmt.Sprintf("%s.sql", strings.ToLower(table.Name.String())))
 	file, err := os.Create(filePath)
 	if err != nil {

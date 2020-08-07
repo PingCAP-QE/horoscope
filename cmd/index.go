@@ -25,7 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
-	"github.com/chaos-mesh/horoscope/pkg/database-types"
+	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 )
 
@@ -172,13 +172,13 @@ func pathExist(path string) bool {
 	return err == nil || !os.IsNotExist(err)
 }
 
-func keyName(table *types.Table, fields []string) string {
+func keyName(table *database.Table, fields []string) string {
 	segments := append([]string{strings.ToUpper(table.Name.String())}, fields...)
 	segments = append(segments, "IDX")
 	return strings.Join(segments, "_")
 }
 
-func indexDML(table *types.Table, level, max int) [][]IndexDMLPair {
+func indexDML(table *database.Table, level, max int) [][]IndexDMLPair {
 	allLevelPairs := indexLevel(table, level)
 	for level, pairs := range allLevelPairs {
 		allLevelPairs[level] = randMax(pairs, max)
@@ -186,7 +186,7 @@ func indexDML(table *types.Table, level, max int) [][]IndexDMLPair {
 	return allLevelPairs
 }
 
-func indexLevel(table *types.Table, level int) [][]IndexDMLPair {
+func indexLevel(table *database.Table, level int) [][]IndexDMLPair {
 	allLevelPairs := make([][]IndexDMLPair, 0, level)
 	allLevelFieldLists := make([][][]string, 0, level)
 	pairs := make([]IndexDMLPair, 0, len(table.Columns))
@@ -250,7 +250,7 @@ func randMax(allPairs []IndexDMLPair, max int) []IndexDMLPair {
 	return ret
 }
 
-func fields2Pair(table *types.Table, fields []string) IndexDMLPair {
+func fields2Pair(table *database.Table, fields []string) IndexDMLPair {
 	key := keyName(table, fields)
 	fieldList := strings.Join(fields, ",")
 	return IndexDMLPair{
