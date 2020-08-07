@@ -18,14 +18,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
+	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
 )
 
 var (
-	planNums    int
+	queryNums   int
 	andOpWeight int
 	genOptions  generator.Options
 	prepareFile = path.Join(dynWorkload, "prepare.sql")
@@ -37,18 +40,25 @@ var (
 		Usage:   "Generate a dynamic bench scheme",
 		Flags: []cli.Flag{
 			&cli.IntFlag{
-				Name:        "plans",
-				Aliases:     []string{"p"},
-				Usage:       "the `numbers` of plans",
+				Name:        "queries",
+				Aliases:     []string{"q"},
+				Usage:       "the number of queries",
 				Value:       20,
-				Destination: &planNums,
+				Destination: &queryNums,
 			},
 			&cli.IntFlag{
-				Name:        "tables",
-				Aliases:     []string{"t"},
-				Usage:       "the max `numbers` of tables",
+				Name:        "table-count",
+				Aliases:     []string{"c"},
+				Usage:       "the max number of tables",
 				Value:       1,
 				Destination: &genOptions.MaxTables,
+			},
+			&cli.DurationFlag{
+				Name:        "threshold",
+				Aliases:     []string{"d"},
+				Usage:       "minimum query execution `duration` threshold",
+				Value:       10 * time.Millisecond,
+				Destination: &genOptions.MinDurationThreshold,
 			},
 			&cli.IntFlag{
 				Name:        "limit",
@@ -65,17 +75,25 @@ var (
 				Destination: &andOpWeight,
 			},
 		},
-		Before: func(*cli.Context) error {
+		Before: func(ctx *cli.Context) error {
 			generator.SetAndOpWeight(andOpWeight)
-			return nil
+			return initTx(ctx)
 		},
 		Action: func(context *cli.Context) error {
 			gen := generator.NewGenerator(Database, Pool.Executor())
-			plans := make([]string, 0, planNums)
-			for i := 0; i < planNums; i++ {
+			plans := make([]string, 0, queryNums)
+			for len(plans) < queryNums {
 				stmt, err := gen.SelectStmt(genOptions)
 				if err != nil {
 					return err
+				}
+				dur, err := getQueryRunDuration(Tx, stmt)
+				if err != nil {
+					return err
+				}
+				if dur < genOptions.MinDurationThreshold {
+					log.Infof("query duration %v is less than %v, so ignore it", dur, genOptions.MinDurationThreshold)
+					continue
 				}
 				plans = append(plans, stmt)
 			}
@@ -115,4 +133,13 @@ func genPrepare(plans []string) string {
 		prepare += fmt.Sprintf("EXPLAIN %s;\n", plan)
 	}
 	return prepare
+}
+
+func getQueryRunDuration(tx executor.Executor, query string) (time.Duration, error) {
+	start := time.Now()
+	_, err := tx.Query(query)
+	if err != nil {
+		return 0, err
+	}
+	return time.Now().Sub(start), nil
 }

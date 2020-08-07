@@ -171,7 +171,7 @@ func (op CmpOperator) RdExpr(column *database.Column, value []byte, exec executo
 		}
 		expr = fmt.Sprintf("%s <> %s", column, cmpValue)
 	case Like:
-		pattern := append(value[:Rd(len(value)-1)+1], '%')
+		pattern := append(value[:Rd(len(value))+1], '%')
 		expr = fmt.Sprintf("%s LIKE %s", column, FormatValue(column.Type, pattern))
 	}
 
