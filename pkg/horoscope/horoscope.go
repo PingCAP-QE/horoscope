@@ -129,6 +129,9 @@ func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) 
 	}
 	if verify {
 		err = verifyQueryResult(originList, rowsSet)
+		if err != nil {
+			panic(fmt.Sprintf("a critical error occurred for query %s: %v", qID, err))
+		}
 	}
 	return
 }
@@ -273,23 +276,23 @@ func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
 
 func verifyQueryResult(origin []executor.Comparable, lists [][]executor.Comparable) (err error) {
 	for _, list := range lists {
-		if !verifyList(origin, list) {
-			return errors.New(fmt.Sprintf("query results verification fails: origin(%#v), result(%#v", origin, list))
+		if err = verifyList(origin, list); err != nil {
+			return err
 		}
 	}
 	return
 }
 
-func verifyList(one, other []executor.Comparable) bool {
+func verifyList(one, other []executor.Comparable) error {
 	if len(one) != len(other) {
-		return false
+		return fmt.Errorf("have different result sets: %v vs %v", len(one), len(other))
 	}
 	for i, column := range one {
 		if !column.Equal(other[i]) {
-			return false
+			return fmt.Errorf("result 1: \n%s\nresult 2: \n%s\n", column.String(), other[i].String())
 		}
 	}
-	return true
+	return nil
 }
 
 func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId int64) (string, error) {
