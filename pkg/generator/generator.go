@@ -57,7 +57,9 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 	}
 
 	selectStmt := &ast.SelectStmt{
-		SelectStmtOpts: &ast.SelectStmtOpts{},
+		SelectStmtOpts: &ast.SelectStmtOpts{
+			SQLCache: true,
+		},
 		Fields: &ast.FieldList{
 			Fields: []*ast.SelectField{
 				{
