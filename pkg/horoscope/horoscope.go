@@ -186,7 +186,7 @@ func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable [
 }
 
 func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *Benches, err error) {
-	sql, err := pkg.BufferOut(query)
+	sql, err := util.BufferOut(query)
 	if err != nil {
 		return
 	}
@@ -302,7 +302,7 @@ func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId int64) (st
 			})
 		}
 	}
-	return pkg.BufferOut(node)
+	return util.BufferOut(node)
 }
 
 func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.TableOptimizerHint, err error) {

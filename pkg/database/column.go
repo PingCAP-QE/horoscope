@@ -16,6 +16,7 @@ package database
 import (
 	"fmt"
 
+	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/types"
 
@@ -31,12 +32,19 @@ type Column struct {
 	Key   string
 }
 
-func (c Column) String() string {
+func (c *Column) String() string {
 	return fmt.Sprintf("%s.%s", c.Table.Name, c.Name)
 }
 
-func (c Column) FullType() string {
+func (c *Column) FullType() string {
 	return c.Type.String()
+}
+
+func (c *Column) ColumnName() *ast.ColumnName {
+	return &ast.ColumnName{
+		Name:  c.Name,
+		Table: c.Table.Name,
+	}
 }
 
 func LoadColumn(table *Table, row executor.Row) (column *Column, err error) {

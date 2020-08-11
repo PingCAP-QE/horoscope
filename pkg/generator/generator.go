@@ -20,6 +20,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/opcode"
+
+	util "github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
@@ -46,39 +51,81 @@ func NewGenerator(db *database.Database, exec executor.Executor) *Generator {
 
 func (g *Generator) SelectStmt(options Options) (string, error) {
 	tables, columnsList := g.RdTablesAndColumns(options.MaxTables)
-	selectStmt := fmt.Sprintf("SELECT * FROM %s", strings.Join(tables, ","))
+
+	if len(tables) == 0 {
+		return "", fmt.Errorf("database `%s` is empty", g.db.Name)
+	}
+
+	selectStmt := &ast.SelectStmt{
+		SelectStmtOpts: &ast.SelectStmtOpts{},
+		Fields: &ast.FieldList{
+			Fields: []*ast.SelectField{
+				{
+					WildCard: &ast.WildCardField{},
+				},
+			},
+		},
+		From: &ast.TableRefsClause{
+			TableRefs: &ast.Join{},
+		},
+	}
+
+	for _, table := range tables {
+		tableRef := &ast.TableName{Name: model.NewCIStr(table)}
+		if selectStmt.From.TableRefs.Left == nil {
+			selectStmt.From.TableRefs.Left = tableRef
+		} else {
+			selectStmt.From.TableRefs.Right = tableRef
+			selectStmt.From.TableRefs = &ast.Join{Left: selectStmt.From.TableRefs}
+		}
+	}
+
 	if len(columnsList) > 0 {
-		exprGroup := make([]string, 0)
 		for i, columns := range columnsList {
 			if len(columns) > 0 {
 				values, err := g.RdValues(tables[i], columns)
 				if err != nil {
 					return "", err
 				}
-				expr := ""
+
+				var expr ast.ExprNode
 				for j, column := range columns {
-					if expr != "" {
-						expr += fmt.Sprintf(" %s ", RdLogicOp())
+					subExpr := RdExpr(g.exec, column, values[j])
+					if expr == nil {
+						expr = subExpr
+					} else {
+						expr = &ast.BinaryOperationExpr{
+							L:  expr,
+							R:  subExpr,
+							Op: RdLogicOp(),
+						}
 					}
-					expr += RdExpr(g.exec, column, values[j])
 				}
-				exprGroup = append(exprGroup, expr)
+
+				if selectStmt.Where == nil {
+					selectStmt.Where = expr
+				} else {
+					selectStmt.Where = &ast.BinaryOperationExpr{
+						L:  selectStmt.Where,
+						R:  expr,
+						Op: opcode.LogicAnd,
+					}
+				}
 			}
 		}
-		selectStmt += fmt.Sprintf(" WHERE (%s)", strings.Join(exprGroup, ") AND ("))
 	}
 
 	// control the max count of order by clause
 	orderBy := g.RdOrderBy(columnsList, 2)
 
 	if len(orderBy) != 0 {
-		selectStmt += fmt.Sprintf(" ORDER BY %s", strings.Join(orderBy, ", "))
+		selectStmt.OrderBy = &ast.OrderByClause{Items: orderBy}
 	}
 	if options.Limit != 0 {
-		selectStmt += fmt.Sprintf(" LIMIT %d", options.Limit)
+		selectStmt.Limit = &ast.Limit{Count: util.NewValueExpr(options.Limit)}
 	}
 
-	return selectStmt, nil
+	return util.BufferOut(selectStmt)
 }
 
 func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*database.Column) {
@@ -102,11 +149,11 @@ func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*database.C
 	return tables, columnsList
 }
 
-func (g *Generator) RdOrderBy(tableColumns [][]*database.Column, count uint) []string {
-	var cols []string
+func (g *Generator) RdOrderBy(tableColumns [][]*database.Column, count uint) []*ast.ByItem {
+	var cols []*ast.ByItem
 	for _, columns := range tableColumns {
 		for _, column := range columns {
-			cols = append(cols, column.String())
+			cols = append(cols, &ast.ByItem{Expr: &ast.ColumnNameExpr{Name: column.ColumnName()}})
 		}
 	}
 	rand.Shuffle(len(cols), func(i, j int) {
