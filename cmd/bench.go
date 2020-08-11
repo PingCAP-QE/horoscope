@@ -101,6 +101,7 @@ func bench(*cli.Context) error {
 				time.Sleep(2 * time.Minute)
 				continue
 			}
+			return err
 		}
 		if benches == nil {
 			break
