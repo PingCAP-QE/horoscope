@@ -49,7 +49,7 @@ var (
 				Name:        "verify",
 				Aliases:     []string{"v"},
 				Usage:       "need results verification",
-				Value:       false,
+				Value:       true,
 				Destination: &needVerify,
 			},
 			&cli.BoolFlag{
@@ -99,8 +99,8 @@ func bench(*cli.Context) error {
 			if strings.Contains(err.Error(), "connection refused") ||
 				strings.Contains(err.Error(), "invalid connection") {
 				time.Sleep(2 * time.Minute)
+				continue
 			}
-			continue
 		}
 		if benches == nil {
 			break

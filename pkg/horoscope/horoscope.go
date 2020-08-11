@@ -129,6 +129,12 @@ func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) 
 	}
 	if verify {
 		err = verifyQueryResult(originList, rowsSet)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"query id": qID,
+				"query":    query,
+			}).Fatalf("a critical error occurred: %v", err)
+		}
 	}
 	return
 }
