@@ -15,7 +15,6 @@ package generator
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"strings"
 	"time"
@@ -39,6 +38,10 @@ type (
 		MaxTables            int
 		MinDurationThreshold time.Duration
 		Limit                int
+
+		// control order by
+		StableOrderBy     bool
+		MaxOrderByColumns int
 	}
 )
 
@@ -116,7 +119,7 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 	}
 
 	// control the max count of order by clause
-	orderBy := g.RdOrderBy(columnsList, 2)
+	orderBy := g.RdOrderBy(options, tables, columnsList)
 
 	if len(orderBy) != 0 {
 		selectStmt.OrderBy = &ast.OrderByClause{Items: orderBy}
@@ -149,8 +152,31 @@ func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*database.C
 	return tables, columnsList
 }
 
-func (g *Generator) RdOrderBy(tableColumns [][]*database.Column, count uint) []*ast.ByItem {
+func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][]*database.Column) []*ast.ByItem {
 	var cols []*ast.ByItem
+	if options.StableOrderBy {
+		allHavePK := true
+		var allColumnFields []*ast.ByItem
+		var pkColumnFields []*ast.ByItem
+		for _, tableName := range tables {
+			table := g.db.BaseTables[tableName]
+			if table.PrimaryKey != nil {
+				pkColumnFields = append(pkColumnFields, &ast.ByItem{Expr: &ast.ColumnNameExpr{Name: table.PrimaryKey.ColumnName()}})
+			} else {
+				allHavePK = false
+			}
+			for _, column := range table.Columns {
+				allColumnFields = append(allColumnFields, &ast.ByItem{Expr: &ast.ColumnNameExpr{Name: column.ColumnName()}})
+			}
+		}
+		if allHavePK {
+			cols = pkColumnFields
+		} else {
+			cols = allColumnFields
+		}
+		return cols
+	}
+
 	for _, columns := range tableColumns {
 		for _, column := range columns {
 			cols = append(cols, &ast.ByItem{Expr: &ast.ColumnNameExpr{Name: column.ColumnName()}})
@@ -159,8 +185,8 @@ func (g *Generator) RdOrderBy(tableColumns [][]*database.Column, count uint) []*
 	rand.Shuffle(len(cols), func(i, j int) {
 		cols[i], cols[j] = cols[j], cols[i]
 	})
-	min := int(math.Min(float64(count), float64(len(cols)))) + 1
-	elemLen := Rd(min)
+
+	elemLen := Rd(util.MinInt(options.MaxOrderByColumns, len(cols)) + 1)
 	return cols[:elemLen]
 }
 
