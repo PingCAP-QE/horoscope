@@ -19,9 +19,9 @@ import (
 	"github.com/pingcap/parser/types"
 	log "github.com/sirupsen/logrus"
 
-	util "github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
+	"github.com/chaos-mesh/horoscope/pkg/utils"
 )
 
 const (
@@ -133,7 +133,7 @@ func (condition RangeCondition) RdExpr(column *database.Column, value []byte, ex
 		expr = &ast.BinaryOperationExpr{
 			L:  columnNameExpr,
 			Op: opcode.Op(condition),
-			R:  util.NewValueExpr(cmpValue),
+			R:  utils.NewValueExpr(cmpValue),
 		}
 	case In:
 		var rg []ast.ExprNode
@@ -162,8 +162,8 @@ func (condition RangeCondition) RdExpr(column *database.Column, value []byte, ex
 
 		expr = &ast.BetweenExpr{
 			Expr:  columnNameExpr,
-			Left:  util.NewValueExpr(lessValue),
-			Right: util.NewValueExpr(greaterValue),
+			Left:  utils.NewValueExpr(lessValue),
+			Right: utils.NewValueExpr(greaterValue),
 		}
 	}
 

@@ -23,10 +23,10 @@ import (
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/opcode"
 
-	util "github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
+	"github.com/chaos-mesh/horoscope/pkg/utils"
 )
 
 type (
@@ -145,10 +145,10 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 		selectStmt.OrderBy = &ast.OrderByClause{Items: orderBy}
 	}
 	if options.Limit != 0 {
-		selectStmt.Limit = &ast.Limit{Count: util.NewValueExpr(options.Limit)}
+		selectStmt.Limit = &ast.Limit{Count: utils.NewValueExpr(options.Limit)}
 	}
 
-	return util.BufferOut(selectStmt)
+	return utils.BufferOut(selectStmt)
 }
 
 func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Column) {
@@ -219,7 +219,7 @@ func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][
 		cols[i], cols[j] = cols[j], cols[i]
 	})
 
-	elemLen := Rd(util.MinInt(options.MaxOrderByColumns, len(cols)) + 1)
+	elemLen := Rd(utils.MinInt(options.MaxOrderByColumns, len(cols)) + 1)
 	return cols[:elemLen]
 }
 
@@ -266,10 +266,10 @@ func (g *Generator) RdValuesList(stmt ast.SelectStmt, columnsList [][]*database.
 		},
 	}
 	stmt.Limit = &ast.Limit{
-		Count: util.NewValueExpr(1),
+		Count: utils.NewValueExpr(1),
 	}
 
-	query, err := util.BufferOut(&stmt)
+	query, err := utils.BufferOut(&stmt)
 	if err != nil {
 		return
 	}

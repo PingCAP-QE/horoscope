@@ -23,9 +23,9 @@ import (
 	"github.com/pingcap/parser/opcode"
 	"github.com/pingcap/tidb/types"
 
-	util "github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
+	"github.com/chaos-mesh/horoscope/pkg/utils"
 )
 
 var (
@@ -250,7 +250,7 @@ func RdNotEqualValue(exec executor.Executor, column *database.Column, value []by
 
 func RdInRange(column *database.Column, value []byte, exec executor.Executor) (rg []ast.ExprNode, err error) {
 	const MaxAdditional = 10
-	rg = []ast.ExprNode{util.NewValueExpr(value)}
+	rg = []ast.ExprNode{utils.NewValueExpr(value)}
 
 	for i := 0; i < Rd(MaxAdditional); i++ {
 		var val []byte
@@ -258,7 +258,7 @@ func RdInRange(column *database.Column, value []byte, exec executor.Executor) (r
 		if err != nil {
 			return
 		}
-		rg = append(rg, util.NewValueExpr(val))
+		rg = append(rg, utils.NewValueExpr(val))
 	}
 
 	return

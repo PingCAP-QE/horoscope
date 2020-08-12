@@ -24,9 +24,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/perf/benchstat"
 
-	"github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/loader"
+	"github.com/chaos-mesh/horoscope/pkg/utils"
 )
 
 const (
@@ -189,7 +189,7 @@ func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable [
 }
 
 func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *Benches, err error) {
-	sql, err := util.BufferOut(query)
+	sql, err := utils.BufferOut(query)
 	if err != nil {
 		return
 	}
@@ -305,7 +305,7 @@ func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId int64) (st
 			})
 		}
 	}
-	return util.BufferOut(node)
+	return utils.BufferOut(node)
 }
 
 func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.TableOptimizerHint, err error) {
