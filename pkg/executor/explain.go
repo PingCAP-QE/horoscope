@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/chaos-mesh/horoscope/pkg"
+	"github.com/chaos-mesh/horoscope/pkg/utils"
 )
 
 var operatorRegex = regexp.MustCompile(`[a-zA-Z]+`)
@@ -76,9 +76,9 @@ func CollectEstAndActRows(ei *ExplainAnalyzeInfo) []*CardinalityInfo {
 	if ei == nil {
 		return nil
 	}
-	infos := []*CardinalityInfo{&CardinalityInfo{
+	infos := []*CardinalityInfo{{
 		ExplainAnalyzeInfo: ei,
-		QError:             util.QError(ei.EstRows, ei.ActRows),
+		QError:             utils.QError(ei.EstRows, ei.ActRows),
 	}}
 	if len(ei.Items) != 0 {
 		for _, e := range ei.Items {

@@ -16,6 +16,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/pingcap/tidb/types/parser_driver"
@@ -45,6 +46,8 @@ var (
 
 	/// needs initialized by subcommand
 	Tx executor.Transaction
+
+	keymapPath = path.Join(dynWorkload, ".keymap")
 )
 
 func main() {
