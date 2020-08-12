@@ -26,12 +26,14 @@ import (
 	util "github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
+	"github.com/chaos-mesh/horoscope/pkg/keymap"
 )
 
 type (
 	Generator struct {
-		db   *database.Database
-		exec executor.Executor
+		db         *database.Database
+		exec       executor.Executor
+		keyMatcher *keymap.KeyMatcher
 	}
 
 	Options struct {
@@ -42,18 +44,26 @@ type (
 		// control order by
 		StableOrderBy     bool
 		MaxOrderByColumns int
+
+		EnableKeyMap bool
 	}
 )
 
-func NewGenerator(db *database.Database, exec executor.Executor) *Generator {
-	return &Generator{
+func NewGenerator(db *database.Database, exec executor.Executor, keymaps []keymap.KeyMap) *Generator {
+	g := &Generator{
 		db:   db,
 		exec: exec,
 	}
+
+	if keymaps != nil {
+		g.keyMatcher = keymap.NewKeyMatcher(keymaps)
+	}
+
+	return g
 }
 
 func (g *Generator) SelectStmt(options Options) (string, error) {
-	tables, columnsList := g.RdTablesAndColumns(options.MaxTables)
+	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
 
 	if len(tables) == 0 {
 		return "", fmt.Errorf("database `%s` is empty", g.db.Name)
@@ -75,14 +85,21 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 		},
 	}
 
-	for _, table := range tables {
-		tableRef := &ast.TableName{Name: model.NewCIStr(table)}
-		if selectStmt.From.TableRefs.Left == nil {
-			selectStmt.From.TableRefs.Left = tableRef
-		} else {
-			selectStmt.From.TableRefs.Right = tableRef
-			selectStmt.From.TableRefs = &ast.Join{Left: selectStmt.From.TableRefs}
+	selectStmt.From.TableRefs.Left = &ast.TableName{Name: model.NewCIStr(tables[0])}
+	for _, table := range tables[1:] {
+		selectStmt.From.TableRefs.Right = &ast.TableName{Name: model.NewCIStr(table)}
+		if g.keyMatcher != nil {
+			if keyPair := g.keyMatcher.MatchRandom(tables[0], table); keyPair != nil {
+				selectStmt.From.TableRefs.On = &ast.OnCondition{
+					Expr: &ast.BinaryOperationExpr{
+						L:  &ast.ColumnNameExpr{Name: keyPair.K1.ColumnName()},
+						R:  &ast.ColumnNameExpr{Name: keyPair.K2.ColumnName()},
+						Op: opcode.EQ,
+					},
+				}
+			}
 		}
+		selectStmt.From.TableRefs = &ast.Join{Left: selectStmt.From.TableRefs}
 	}
 
 	if len(columnsList) > 0 {
@@ -133,25 +150,38 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 	return util.BufferOut(selectStmt)
 }
 
-func (g *Generator) RdTablesAndColumns(maxTables int) ([]string, [][]*database.Column) {
+func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Column) {
 	tableNums := Rd(maxTables) + 1
-	columnsList := make([][]*database.Column, 0)
+	keysList := make([][]*database.Column, 0, tableNums)
 	tables := make([]string, 0, tableNums)
+
+	var mainTable *database.Table
+
+	for _, table := range g.db.BaseTables {
+		mainTable = table
+		break
+	}
+
+	if mainTable == nil {
+		return tables, keysList
+	}
+
+	tables = append(tables, mainTable.Name.String())
+	keysList = append(keysList, mainTable.Keys())
+
 	for tableName, table := range g.db.BaseTables {
-		columns := make([]*database.Column, 0)
-		tableNums--
-		if tableNums < 0 {
+		if len(tables) >= tableNums {
 			break
 		}
-		tables = append(tables, tableName)
-		for _, column := range table.Columns {
-			if column.Key != "" {
-				columns = append(columns, column)
-			}
+
+		if g.keyMatcher != nil && len(g.keyMatcher.Match(mainTable.Name.String(), tableName)) == 0 {
+			continue
 		}
-		columnsList = append(columnsList, columns)
+
+		tables = append(tables, tableName)
+		keysList = append(keysList, table.Keys())
 	}
-	return tables, columnsList
+	return tables, keysList
 }
 
 func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][]*database.Column) []*ast.ByItem {

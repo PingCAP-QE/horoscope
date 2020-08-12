@@ -18,6 +18,9 @@ import (
 	"io/ioutil"
 	"regexp"
 	"strings"
+
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
 )
 
 type (
@@ -116,4 +119,11 @@ func ParseFile(filename string) (maps []KeyMap, err error) {
 
 func (key *Key) String() string {
 	return fmt.Sprintf("%s.%s", key.Table, key.Column)
+}
+
+func (key *Key) ColumnName() *ast.ColumnName {
+	return &ast.ColumnName{
+		Table: model.NewCIStr(key.Table),
+		Name:  model.NewCIStr(key.Column),
+	}
 }

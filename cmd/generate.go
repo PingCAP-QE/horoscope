@@ -25,6 +25,7 @@ import (
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/generator"
+	"github.com/chaos-mesh/horoscope/pkg/keymap"
 )
 
 var (
@@ -45,6 +46,12 @@ var (
 				Usage:       "the number of queries",
 				Value:       20,
 				Destination: &queryNums,
+			},
+			&cli.BoolFlag{
+				Name:        "keymap",
+				Aliases:     []string{"k"},
+				Usage:       "enable keymap",
+				Destination: &genOptions.EnableKeyMap,
 			},
 			&cli.IntFlag{
 				Name:        "table-count",
@@ -92,47 +99,55 @@ var (
 			generator.SetAndOpWeight(andOpWeight)
 			return initTx(ctx)
 		},
-		Action: func(context *cli.Context) error {
-			gen := generator.NewGenerator(Database, Pool.Executor())
+		Action: func(context *cli.Context) (err error) {
+			var keymaps []keymap.KeyMap
+			if genOptions.EnableKeyMap {
+				keymaps, err = keymap.ParseFile(keymapPath)
+				if err != nil {
+					return
+				}
+			}
+			gen := generator.NewGenerator(Database, Pool.Executor(), keymaps)
 			plans := make([]string, 0, queryNums)
 			for len(plans) < queryNums {
 				stmt, err := gen.SelectStmt(genOptions)
 				if err != nil {
 					return err
 				}
+				log.WithField("query", stmt).Debug("new query generated, checking...")
 				dur, err := getQueryRunDuration(Tx, stmt)
 				if err != nil {
 					return err
 				}
 				if dur < genOptions.MinDurationThreshold {
-					log.Infof("query duration %v is less than %v, so ignore it", dur, genOptions.MinDurationThreshold)
+					log.Tracef("query duration %v is less than %v, so ignore it", dur, genOptions.MinDurationThreshold)
 					continue
 				}
 				plans = append(plans, stmt)
 			}
-			err := ioutil.WriteFile(prepareFile, []byte(genPrepare(plans)), 0644)
+			err = ioutil.WriteFile(prepareFile, []byte(genPrepare(plans)), 0644)
 			if err != nil {
-				return err
+				return
 			}
 			err = os.RemoveAll(queriesDir)
 			if err != nil {
-				return err
+				return
 			}
 			err = os.Mkdir(queriesDir, 0755)
 			if err != nil {
-				return err
+				return
 			}
 			for i, plan := range plans {
-				err := ioutil.WriteFile(
+				err = ioutil.WriteFile(
 					path.Join(queriesDir, fmt.Sprintf("%d.sql", i+1)),
 					[]byte(fmt.Sprintf("%s;\n", plan)),
 					0644,
 				)
 				if err != nil {
-					return err
+					return
 				}
 			}
-			return nil
+			return
 		},
 	}
 )

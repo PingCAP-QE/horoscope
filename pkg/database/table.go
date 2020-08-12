@@ -60,3 +60,13 @@ func (t *Table) LoadColumns(data executor.Rows) error {
 	}
 	return nil
 }
+
+func (t *Table) Keys() []*Column {
+	keys := make([]*Column, 0)
+	for _, column := range t.Columns {
+		if column.Key != "" {
+			keys = append(keys, column)
+		}
+	}
+	return keys
+}

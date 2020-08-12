@@ -33,7 +33,6 @@ var (
 
 	groupKey *keymap.Key
 
-	keymapPath = path.Join(dynWorkload, ".keymap")
 	schemaPath = path.Join(dynWorkload, "schema.sql")
 	slicesDir  = path.Join(dynWorkload, "slices")
 

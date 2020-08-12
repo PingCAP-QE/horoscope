@@ -168,7 +168,7 @@ func (condition RangeCondition) RdExpr(column *database.Column, value []byte, ex
 	}
 
 	if err != nil {
-		log.Warnf("err in RdInRange: %s", err.Error())
+		log.Tracef("message in randing expression: %s", err.Error())
 	}
 	return
 }
