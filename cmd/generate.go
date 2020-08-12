@@ -53,6 +53,19 @@ var (
 				Value:       1,
 				Destination: &genOptions.MaxTables,
 			},
+			&cli.BoolFlag{
+				Name:        "stable-order",
+				Aliases:     []string{"s"},
+				Usage:       "generate all stable order queries",
+				Value:       true,
+				Destination: &genOptions.StableOrderBy,
+			},
+			&cli.IntFlag{
+				Name:        "max-order-count",
+				Usage:       "the max number of order by columns",
+				Value:       2,
+				Destination: &genOptions.MaxOrderByColumns,
+			},
 			&cli.DurationFlag{
 				Name:        "threshold",
 				Aliases:     []string{"d"},

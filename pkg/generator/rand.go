@@ -19,14 +19,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/opcode"
 	"github.com/pingcap/tidb/types"
 
+	util "github.com/chaos-mesh/horoscope/pkg"
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
 var (
-	logicOperators = []string{"OR"}
+	logicOperators = []opcode.Op{opcode.LogicOr}
 )
 
 func init() {
@@ -36,10 +39,10 @@ func init() {
 // Set the weight of "AND" operator
 func SetAndOpWeight(weight int) {
 	if weight > 0 {
-		logicOperators = make([]string, 0, weight+1)
-		logicOperators = append(logicOperators, "OR")
+		logicOperators = make([]opcode.Op, 0, weight+1)
+		logicOperators = append(logicOperators, opcode.LogicOr)
 		for ; weight > 0; weight-- {
-			logicOperators = append(logicOperators, "AND")
+			logicOperators = append(logicOperators, opcode.LogicAnd)
 		}
 	}
 }
@@ -162,15 +165,11 @@ func RdSQLValue(tp *types.FieldType) string {
 	}
 }
 
-func RdBinaryOperator(ops []string) string {
+func RdBinaryOperator(ops []opcode.Op) opcode.Op {
 	return ops[Rd(len(ops))]
 }
 
-func RdComparisionOp() string {
-	return RdBinaryOperator([]string{"<=", ">="})
-}
-
-func RdLogicOp() string {
+func RdLogicOp() opcode.Op {
 	return RdBinaryOperator(logicOperators)
 }
 
@@ -186,7 +185,7 @@ func FormatValue(tp *types.FieldType, value []byte) string {
 	}
 }
 
-func RdValue(exec executor.Executor, column *database.Column) (value string, err error) {
+func RdValue(exec executor.Executor, column *database.Column) (value []byte, err error) {
 	query := fmt.Sprintf("SELECT %s FROM %s ORDER BY RAND() LIMIT 1", column.Name.String(), column.Table.Name.String())
 	rows, err := exec.Query(query)
 	if err != nil {
@@ -198,11 +197,11 @@ func RdValue(exec executor.Executor, column *database.Column) (value string, err
 		return
 	}
 
-	value = FormatValue(column.Type, rows.Data[0][0])
+	value = rows.Data[0][0]
 	return
 }
 
-func RdGreaterValue(exec executor.Executor, column *database.Column, less []byte) (value string, err error) {
+func RdGreaterValue(exec executor.Executor, column *database.Column, less []byte) (value []byte, err error) {
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s > %s ORDER BY RAND() LIMIT 1",
 		column.Name.String(), column.Table.Name.String(), column.Name.String(), FormatValue(column.Type, less),
 	)
@@ -215,11 +214,11 @@ func RdGreaterValue(exec executor.Executor, column *database.Column, less []byte
 		err = fmt.Errorf("there is no %s greater than %s", column, FormatValue(column.Type, less))
 		return
 	}
-	value = FormatValue(column.Type, rows.Data[0][0])
+	value = rows.Data[0][0]
 	return
 }
 
-func RdLessValue(exec executor.Executor, column *database.Column, less []byte) (value string, err error) {
+func RdLessValue(exec executor.Executor, column *database.Column, less []byte) (value []byte, err error) {
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s < %s ORDER BY RAND() LIMIT 1",
 		column.Name.String(), column.Table.Name.String(), column.Name.String(), FormatValue(column.Type, less),
 	)
@@ -232,11 +231,11 @@ func RdLessValue(exec executor.Executor, column *database.Column, less []byte) (
 		err = fmt.Errorf("there is no %s less than %s", column, FormatValue(column.Type, less))
 		return
 	}
-	value = FormatValue(column.Type, rows.Data[0][0])
+	value = rows.Data[0][0]
 	return
 }
 
-func RdNotEqualValue(exec executor.Executor, column *database.Column, value []byte) (other string, err error) {
+func RdNotEqualValue(exec executor.Executor, column *database.Column, value []byte) (other []byte, err error) {
 	other, err = RdLessValue(exec, column, value)
 	if err == nil {
 		return
@@ -249,26 +248,25 @@ func RdNotEqualValue(exec executor.Executor, column *database.Column, value []by
 	return
 }
 
-func RdInRange(column *database.Column, value []byte, exec executor.Executor) (rg string, err error) {
+func RdInRange(column *database.Column, value []byte, exec executor.Executor) (rg []ast.ExprNode, err error) {
 	const MaxAdditional = 10
-	list := []string{FormatValue(column.Type, value)}
+	rg = []ast.ExprNode{util.NewValueExpr(value)}
 
 	for i := 0; i < Rd(MaxAdditional); i++ {
-		var val string
+		var val []byte
 		val, err = RdValue(exec, column)
 		if err != nil {
 			return
 		}
-		list = append(list, val)
+		rg = append(rg, util.NewValueExpr(val))
 	}
 
-	rg = strings.Join(list, ",")
 	return
 }
 
-func RdExpr(exec executor.Executor, column *database.Column, value []byte) string {
-	opList := make([]CmpOperator, 0)
-	for _, op := range Ops {
+func RdExpr(exec executor.Executor, column *database.Column, value []byte) ast.ExprNode {
+	opList := make([]RangeCondition, 0)
+	for _, op := range conditions {
 		if op.Suit(column.Type, value) {
 			opList = append(opList, op)
 		}
@@ -276,7 +274,7 @@ func RdExpr(exec executor.Executor, column *database.Column, value []byte) strin
 
 	for {
 		randOp := opList[Rd(len(opList))]
-		if expr := randOp.RdExpr(column, value, exec); expr != "" {
+		if expr := randOp.RdExpr(column, value, exec); expr != nil {
 			return expr
 		}
 	}

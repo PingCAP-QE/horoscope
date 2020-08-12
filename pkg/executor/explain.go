@@ -78,7 +78,7 @@ func CollectEstAndActRows(ei *ExplainAnalyzeInfo) []*CardinalityInfo {
 	}
 	infos := []*CardinalityInfo{&CardinalityInfo{
 		ExplainAnalyzeInfo: ei,
-		QError:             pkg.QError(ei.EstRows, ei.ActRows),
+		QError:             util.QError(ei.EstRows, ei.ActRows),
 	}}
 	if len(ei.Items) != 0 {
 		for _, e := range ei.Items {

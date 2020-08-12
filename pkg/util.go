@@ -1,4 +1,4 @@
-package pkg
+package util
 
 import (
 	"bytes"
@@ -27,4 +27,22 @@ func BufferOut(node ast.Node) (string, error) {
 		return "", err
 	}
 	return out.String(), nil
+}
+
+func NewValueExpr(value interface{}) ast.ValueExpr {
+	return ast.NewValueExpr(value, "", "")
+}
+
+func MaxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func MinInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
