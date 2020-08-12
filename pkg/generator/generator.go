@@ -103,13 +103,14 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 	}
 
 	if len(columnsList) > 0 {
+		valuesList, err := g.RdValuesList(*selectStmt, columnsList)
+		if err != nil {
+			return "", err
+		}
+
 		for i, columns := range columnsList {
 			if len(columns) > 0 {
-				values, err := g.RdValues(tables[i], columns)
-				if err != nil {
-					return "", err
-				}
-
+				values := valuesList[i]
 				var expr ast.ExprNode
 				for j, column := range columns {
 					subExpr := RdExpr(g.exec, column, values[j])
@@ -236,5 +237,60 @@ func (g *Generator) RdValues(table string, columns []*database.Column) (values [
 	for _, value := range rows.Data[0] {
 		values = append(values, value)
 	}
+	return
+}
+
+func (g *Generator) RdValuesList(stmt ast.SelectStmt, columnsList [][]*database.Column) (valuesList [][][]byte, err error) {
+	valuesList = make([][][]byte, 0, len(columnsList))
+
+	fields := &ast.FieldList{}
+
+	for _, columns := range columnsList {
+		for _, column := range columns {
+			fields.Fields = append(fields.Fields, &ast.SelectField{
+				Expr: &ast.ColumnNameExpr{
+					Name: column.ColumnName(),
+				},
+			})
+		}
+	}
+
+	stmt.Fields = fields
+	stmt.OrderBy = &ast.OrderByClause{
+		Items: []*ast.ByItem{
+			{
+				Expr: &ast.FuncCallExpr{
+					FnName: model.NewCIStr("RAND"),
+				},
+			},
+		},
+	}
+	stmt.Limit = &ast.Limit{
+		Count: util.NewValueExpr(1),
+	}
+
+	query, err := util.BufferOut(&stmt)
+	if err != nil {
+		return
+	}
+
+	rows, err := g.exec.Query(query)
+	if err != nil {
+		return
+	}
+
+	if rows.RowCount() == 0 {
+		err = fmt.Errorf("query got empty set: %s", query)
+	}
+
+	values := rows.Data[0]
+
+	for _, columns := range columnsList {
+		newValues := make([][]byte, len(columns))
+		copy(newValues, values)
+		valuesList = append(valuesList, newValues)
+		values = values[len(columns):]
+	}
+
 	return
 }
