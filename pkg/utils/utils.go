@@ -31,15 +31,21 @@ func BufferOut(node ast.Node) (string, error) {
 }
 
 func NewValueExpr(value interface{}) ast.ValueExpr {
-	if value == nil {
+	if IsNil(value) {
 		return ast.NewValueExpr(nil, "", "")
 	}
-	switch reflect.TypeOf(value).Kind() {
-	case reflect.Slice, reflect.Ptr:
-		return ast.NewValueExpr(nil, "", "")
-	default:
-		return ast.NewValueExpr(value, "", "")
+	return ast.NewValueExpr(value, "", "")
+}
+
+func IsNil(i interface{}) bool {
+	if i == nil {
+		return true
 	}
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice:
+		return reflect.ValueOf(i).IsNil()
+	}
+	return false
 }
 
 func MaxInt(a, b int) int {
