@@ -106,7 +106,7 @@ func (condition RangeCondition) RdExpr(column *database.Column, value []byte, ex
 
 	var err error
 
-	var genCmpValue = func(condition RangeCondition) ([]byte, error) {
+	var genCmpValue = func() ([]byte, error) {
 		switch condition {
 		case Greater:
 			return RdGreaterValue(exec, column, value)
@@ -126,7 +126,7 @@ func (condition RangeCondition) RdExpr(column *database.Column, value []byte, ex
 	switch condition {
 	case Equal, NullSafeEqual, GreaterEqual, LessEqual, Less, Greater, NotEqual, Like:
 		var cmpValue []byte
-		cmpValue, err = genCmpValue(condition)
+		cmpValue, err = genCmpValue()
 		if err != nil {
 			break
 		}
