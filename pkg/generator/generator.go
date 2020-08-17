@@ -178,7 +178,9 @@ func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Colu
 		if g.keyMatcher != nil && len(g.keyMatcher.Match(mainTable.Name.String(), tableName)) == 0 {
 			continue
 		}
-
+		if tableName == mainTable.Name.String() {
+			continue
+		}
 		tables = append(tables, tableName)
 		keysList = append(keysList, table.Keys())
 	}
