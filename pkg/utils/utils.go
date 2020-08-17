@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"math"
+	"reflect"
 
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/format"
@@ -30,6 +31,9 @@ func BufferOut(node ast.Node) (string, error) {
 }
 
 func NewValueExpr(value interface{}) ast.ValueExpr {
+	if value == nil || (reflect.ValueOf(value).Kind() == reflect.Ptr || reflect.ValueOf(value).Kind() == reflect.Slice) && reflect.ValueOf(value).IsNil() {
+		return ast.NewValueExpr(nil, "", "")
+	}
 	return ast.NewValueExpr(value, "", "")
 }
 
