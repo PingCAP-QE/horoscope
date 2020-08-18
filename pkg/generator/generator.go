@@ -276,8 +276,9 @@ func (g *Generator) RdValuesList(tableRefs *ast.TableRefsClause, columnsList [][
 	}
 
 	stmt := ast.SelectStmt{
-		Fields: fields,
-		From:   tableRefs,
+		SelectStmtOpts: &ast.SelectStmtOpts{},
+		Fields:         fields,
+		From:           tableRefs,
 		OrderBy: &ast.OrderByClause{
 			Items: []*ast.ByItem{
 				{
