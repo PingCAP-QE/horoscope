@@ -64,78 +64,9 @@ func NewGenerator(db *database.Database, exec executor.Executor, keymaps []keyma
 
 func (g *Generator) SelectStmt(options Options) (string, error) {
 	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
-
-	if len(tables) == 0 {
-		return "", fmt.Errorf("database `%s` is empty", g.db.Name)
-	}
-
-	selectStmt := &ast.SelectStmt{
-		SelectStmtOpts: &ast.SelectStmtOpts{
-			SQLCache: true,
-		},
-		Fields: &ast.FieldList{
-			Fields: []*ast.SelectField{
-				{
-					WildCard: &ast.WildCardField{},
-				},
-			},
-		},
-		From: &ast.TableRefsClause{
-			TableRefs: &ast.Join{},
-		},
-	}
-
-	selectStmt.From.TableRefs.Left = &ast.TableName{Name: model.NewCIStr(tables[0])}
-	for _, table := range tables[1:] {
-		selectStmt.From.TableRefs.Right = &ast.TableName{Name: model.NewCIStr(table)}
-		if g.keyMatcher != nil {
-			if keyPair := g.keyMatcher.MatchRandom(tables[0], table); keyPair != nil {
-				selectStmt.From.TableRefs.On = &ast.OnCondition{
-					Expr: &ast.BinaryOperationExpr{
-						L:  &ast.ColumnNameExpr{Name: keyPair.K1.ColumnName()},
-						R:  &ast.ColumnNameExpr{Name: keyPair.K2.ColumnName()},
-						Op: opcode.EQ,
-					},
-				}
-			}
-		}
-		selectStmt.From.TableRefs = &ast.Join{Left: selectStmt.From.TableRefs}
-	}
-
-	if len(columnsList) > 0 {
-		valuesList, err := g.RdValuesList(*selectStmt, columnsList)
-		if err != nil {
-			return "", err
-		}
-
-		for i, columns := range columnsList {
-			if len(columns) > 0 {
-				values := valuesList[i]
-				var expr ast.ExprNode
-				for j, column := range columns {
-					subExpr := RdExpr(g.exec, column, values[j])
-					if expr == nil {
-						expr = subExpr
-					} else {
-						expr = &ast.BinaryOperationExpr{
-							L:  expr,
-							R:  subExpr,
-							Op: RdLogicOp(),
-						}
-					}
-				}
-
-				if selectStmt.Where == nil {
-					selectStmt.Where = expr
-				} else {
-					selectStmt.Where = &ast.BinaryOperationExpr{
-						L:  selectStmt.Where,
-						R:  expr,
-						Op: opcode.LogicAnd,
-					}
-				}
-			}
-		}
+	selectStmt, err := g.PrepareSelect(tables, columnsList)
+	if err != nil {
+		return "", err
 	}
 
 	// control the max count of order by clause
@@ -149,6 +80,93 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 	}
 
 	return utils.BufferOut(selectStmt)
+}
+
+func (g *Generator) PrepareSelect(tables []string, columnsList [][]*database.Column) (*ast.SelectStmt, error) {
+	if len(tables) == 0 {
+		return nil, fmt.Errorf("database `%s` is empty", g.db.Name)
+	}
+
+	tableRefs := g.TableRefsClause(tables)
+
+	valuesList, err := g.RdValuesList(tableRefs, columnsList)
+	if err != nil {
+		return nil, err
+	}
+
+	stmt := &ast.SelectStmt{
+		SelectStmtOpts: &ast.SelectStmtOpts{
+			SQLCache: true,
+		},
+		Fields: &ast.FieldList{
+			Fields: []*ast.SelectField{
+				{
+					WildCard: &ast.WildCardField{},
+				},
+			},
+		},
+		From:  tableRefs,
+		Where: g.WhereExpr(columnsList, valuesList),
+	}
+
+	return stmt, nil
+}
+
+func (g *Generator) TableRefsClause(tables []string) *ast.TableRefsClause {
+	clause := &ast.TableRefsClause{
+		TableRefs: &ast.Join{},
+	}
+	clause.TableRefs.Left = &ast.TableName{Name: model.NewCIStr(tables[0])}
+	for _, table := range tables[1:] {
+		clause.TableRefs.Right = &ast.TableName{Name: model.NewCIStr(table)}
+		if g.keyMatcher != nil {
+			if keyPair := g.keyMatcher.MatchRandom(tables[0], table); keyPair != nil {
+				clause.TableRefs.On = &ast.OnCondition{
+					Expr: &ast.BinaryOperationExpr{
+						L:  &ast.ColumnNameExpr{Name: keyPair.K1.ColumnName()},
+						R:  &ast.ColumnNameExpr{Name: keyPair.K2.ColumnName()},
+						Op: opcode.EQ,
+					},
+				}
+			}
+		}
+		clause.TableRefs = &ast.Join{Left: clause.TableRefs}
+	}
+
+	return clause
+}
+
+func (g *Generator) WhereExpr(columnsList [][]*database.Column, valuesList [][][]byte) ast.ExprNode {
+	var whereExpr ast.ExprNode
+	for i, columns := range columnsList {
+		if len(columns) > 0 {
+			values := valuesList[i]
+			var expr ast.ExprNode
+			for j, column := range columns {
+				subExpr := RdExpr(g.exec, column, values[j])
+				if expr == nil {
+					expr = subExpr
+				} else {
+					expr = &ast.BinaryOperationExpr{
+						L:  expr,
+						R:  subExpr,
+						Op: RdLogicOp(),
+					}
+				}
+			}
+
+			if whereExpr == nil {
+				whereExpr = expr
+			} else {
+				whereExpr = &ast.BinaryOperationExpr{
+					L:  whereExpr,
+					R:  expr,
+					Op: opcode.LogicAnd,
+				}
+			}
+		}
+	}
+	return whereExpr
 }
 
 func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Column) {
@@ -242,7 +260,7 @@ func (g *Generator) RdValues(table string, columns []*database.Column) (values [
 	return
 }
 
-func (g *Generator) RdValuesList(stmt ast.SelectStmt, columnsList [][]*database.Column) (valuesList [][][]byte, err error) {
+func (g *Generator) RdValuesList(tableRefs *ast.TableRefsClause, columnsList [][]*database.Column) (valuesList [][][]byte, err error) {
 	valuesList = make([][][]byte, 0, len(columnsList))
 
 	fields := &ast.FieldList{}
@@ -257,18 +275,21 @@ func (g *Generator) RdValuesList(stmt ast.SelectStmt, columnsList [][]*database.
 		}
 	}
 
-	stmt.Fields = fields
-	stmt.OrderBy = &ast.OrderByClause{
-		Items: []*ast.ByItem{
-			{
-				Expr: &ast.FuncCallExpr{
-					FnName: model.NewCIStr("RAND"),
+	stmt := ast.SelectStmt{
+		Fields: fields,
+		From:   tableRefs,
+		OrderBy: &ast.OrderByClause{
+			Items: []*ast.ByItem{
+				{
+					Expr: &ast.FuncCallExpr{
+						FnName: model.NewCIStr("RAND"),
+					},
 				},
 			},
 		},
-	}
-	stmt.Limit = &ast.Limit{
-		Count: utils.NewValueExpr(1),
+		Limit: &ast.Limit{
+			Count: utils.NewValueExpr(1),
+		},
 	}
 
 	query, err := utils.BufferOut(&stmt)
