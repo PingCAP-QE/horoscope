@@ -27,11 +27,12 @@ import (
 )
 
 var (
-	needPrepare            bool
-	enableCollectCardError bool
-	needVerify             bool
-	workloadDir            string
-	benchCommand           = &cli.Command{
+	needPrepare             bool
+	disableCollectCardError bool
+	noNeedVerify            bool
+	workloadDir             string
+	reportFmt               string
+	benchCommand            = &cli.Command{
 		Name:   "bench",
 		Usage:  "Bench the optimizer",
 		Action: bench,
@@ -45,25 +46,31 @@ var (
 				Value:       false,
 				Destination: &needPrepare,
 			},
-			&cli.BoolFlag{
-				Name:        "verify",
-				Aliases:     []string{"v"},
-				Usage:       "need results verification",
-				Value:       true,
-				Destination: &needVerify,
-			},
-			&cli.BoolFlag{
-				Name:        "c",
-				Usage:       "collect cardinality estimation error",
-				Value:       true,
-				Destination: &enableCollectCardError,
-			},
 			&cli.StringFlag{
 				Name:        "workload",
 				Aliases:     []string{"w"},
 				Usage:       "specify the workload `DIR`",
 				Value:       "benchmark/dyn",
 				Destination: &workloadDir,
+			},
+			&cli.StringFlag{
+				Name:        "output-format",
+				Aliases:     []string{"f"},
+				Usage:       "specify the format of report, may be `table` or `json`",
+				Value:       "table",
+				Destination: &reportFmt,
+			},
+			&cli.BoolFlag{
+				Name:        "no-verify",
+				Usage:       "dont't perform results verification",
+				Value:       false,
+				Destination: &noNeedVerify,
+			},
+			&cli.BoolFlag{
+				Name:        "no-cardinality-error",
+				Usage:       "collect cardinality estimation error",
+				Value:       false,
+				Destination: &disableCollectCardError,
 			},
 		},
 	}
@@ -80,10 +87,10 @@ func bench(*cli.Context) error {
 		return err
 	}
 
-	horo := horoscope.NewHoroscope(Tx, newLoader, enableCollectCardError)
+	horo := horoscope.NewHoroscope(Tx, newLoader, !disableCollectCardError)
 	var collection horoscope.BenchCollection
 	for {
-		benches, err := horo.Next(round, needVerify)
+		benches, err := horo.Next(round, !noNeedVerify)
 		if err != nil {
 			if benches != nil {
 				log.WithFields(log.Fields{
@@ -137,8 +144,7 @@ func bench(*cli.Context) error {
 			}
 		}
 	}
-	fmt.Print(collection.Table().String())
-	return nil
+	return collection.Output(reportFmt)
 }
 
 func prepare(workloadDir string) error {
