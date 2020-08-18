@@ -42,10 +42,12 @@ type (
 		Limit                int
 
 		// control order by
-		StableOrderBy     bool
-		MaxOrderByColumns int
+		StableOrderBy bool
+		MaxByItems    int
 
 		EnableKeyMap bool
+
+		AggregateWeight float64
 	}
 )
 
@@ -62,10 +64,16 @@ func NewGenerator(db *database.Database, exec executor.Executor, keymaps []keyma
 	return g
 }
 
-func (g *Generator) SelectStmt(options Options) (string, error) {
-	stmt, err := g.NormalSelect(options)
+func (g *Generator) SelectStmt(options Options) (query string, err error) {
+	var stmt *ast.SelectStmt
+	if RdFloat64() < options.AggregateWeight {
+		stmt, err = g.AggregateSelect(options)
+	} else {
+		stmt, err = g.NormalSelect(options)
+	}
+
 	if err != nil {
-		return "", err
+		return
 	}
 	return utils.BufferOut(stmt)
 }
@@ -83,6 +91,41 @@ func (g *Generator) NormalSelect(options Options) (stmt *ast.SelectStmt, err err
 	if len(orderBy) != 0 {
 		stmt.OrderBy = &ast.OrderByClause{Items: orderBy}
 	}
+	if options.Limit != 0 {
+		stmt.Limit = &ast.Limit{Count: utils.NewValueExpr(options.Limit)}
+	}
+
+	return
+}
+
+func (g *Generator) AggregateSelect(options Options) (stmt *ast.SelectStmt, err error) {
+	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
+	stmt, err = g.PrepareSelect(tables, columnsList)
+	if err != nil {
+		return
+	}
+
+	items, groupColumns := g.RdGroupBy(options.MaxByItems, columnsList)
+	fields := make([]*ast.SelectField, 0)
+
+	for _, item := range items {
+		fields = append(fields, &ast.SelectField{Expr: item.Expr})
+	}
+
+	for _, columns := range columnsList {
+		for _, column := range columns {
+			if !groupColumns[column] {
+				fields = append(fields, &ast.SelectField{Expr: RdAggregateExpr(column)})
+			}
+		}
+	}
+
+	if len(items) > 0 {
+		stmt.GroupBy = &ast.GroupByClause{Items: items}
+		stmt.OrderBy = &ast.OrderByClause{Items: items}
+	}
+	stmt.Fields.Fields = fields
+
 	if options.Limit != 0 {
 		stmt.Limit = &ast.Limit{Count: utils.NewValueExpr(options.Limit)}
 	}
@@ -151,7 +194,7 @@ func (g *Generator) WhereExpr(columnsList [][]*database.Column, valuesList [][][
 			values := valuesList[i]
 			var expr ast.ExprNode
 			for j, column := range columns {
-				subExpr := RdExpr(g.exec, column, values[j])
+				subExpr := RdRangeConditionExpr(g.exec, column, values[j])
 				if expr == nil {
 					expr = subExpr
 				} else {
@@ -213,6 +256,21 @@ func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Colu
 	return tables, keysList
 }
 
+func (g *Generator) RdGroupBy(maxByItems int, tableColumns [][]*database.Column) ([]*ast.ByItem, map[*database.Column]bool) {
+	itemNums := Rd(maxByItems + 1)
+	items := make([]*ast.ByItem, 0, itemNums)
+	columnSet := make(map[*database.Column]bool)
+	for i := 0; i < itemNums; i++ {
+		columns := tableColumns[Rd(len(tableColumns))]
+		column := columns[Rd(len(columns))]
+		if !columnSet[column] {
+			items = append(items, &ast.ByItem{Expr: &ast.ColumnNameExpr{Name: column.ColumnName()}})
+			columnSet[column] = true
+		}
+	}
+	return items, columnSet
+}
+
 func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][]*database.Column) []*ast.ByItem {
 	var cols []*ast.ByItem
 	if options.StableOrderBy {
@@ -247,7 +305,7 @@ func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][
 		cols[i], cols[j] = cols[j], cols[i]
 	})
 
-	elemLen := Rd(utils.MinInt(options.MaxOrderByColumns, len(cols)) + 1)
+	elemLen := Rd(utils.MinInt(options.MaxByItems, len(cols)) + 1)
 	return cols[:elemLen]
 }
 

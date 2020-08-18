@@ -68,10 +68,10 @@ var (
 				Destination: &genOptions.StableOrderBy,
 			},
 			&cli.IntFlag{
-				Name:        "max-order-count",
-				Usage:       "the max number of order by columns",
-				Value:       2,
-				Destination: &genOptions.MaxOrderByColumns,
+				Name:        "max-by-items",
+				Usage:       "the max `number` of by-items, used by order-by and group-by",
+				Value:       3,
+				Destination: &genOptions.MaxByItems,
 			},
 			&cli.DurationFlag{
 				Name:        "threshold",
@@ -86,6 +86,13 @@ var (
 				Usage:       "`limit` of each query",
 				Value:       100,
 				Destination: &genOptions.Limit,
+			},
+			&cli.Float64Flag{
+				Name:        "aggr-weight",
+				Aliases:     []string{"aw"},
+				Usage:       "`weight` of aggregate select statements; between 0.0 and 1.0",
+				Value:       0.5,
+				Destination: &genOptions.AggregateWeight,
 			},
 			&cli.IntFlag{
 				Name:        "weight",
