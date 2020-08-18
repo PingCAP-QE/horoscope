@@ -47,22 +47,17 @@ type Bench struct {
 type Metrics benchstat.Metrics
 
 func (m *Metrics) format() string {
-	mean, diff := m.formatMean(), m.formatDiff()
-	return fmt.Sprintf("%s ±%3s", mean, diff)
+	mean, diff := m.Mean, m.Diff()
+	return fmt.Sprintf("%.1fms ± %.1f%%", mean, diff*100)
 }
 
-func (m *Metrics) formatMean() string {
-	mean := m.Mean
-	return fmt.Sprintf("%.1fms", mean)
-}
-
-func (m *Metrics) formatDiff() string {
+func (m *Metrics) Diff() float64 {
 	if m.Mean == 0 || m.Max == 0 {
-		return ""
+		return 0
 	}
 	diff := math.Max(1-m.Min/m.Max,
 		m.Max/m.Min-1)
-	return fmt.Sprintf("%.0f%%", diff*100)
+	return diff * 100
 }
 
 // computeStats updates the derived statistics in d from the raw
