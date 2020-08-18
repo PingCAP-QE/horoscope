@@ -50,7 +50,9 @@ func (c *Cardinalitor) Test() (map[string]map[string]*Metrics, error) {
 	}
 	ctx := context.TODO()
 	if c.Timeout != time.Duration(0) {
-		ctx, _ = context.WithTimeout(context.TODO(), c.Timeout)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.TODO(), c.Timeout)
+		defer cancel()
 	}
 	for tableName, columns := range c.TableColumns {
 		if _, e := result[tableName]; !e {

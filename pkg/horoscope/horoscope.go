@@ -203,7 +203,7 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 	if err != nil {
 		return
 	}
-	fmt.Printf("query explain start %s:\n%s\nquery explain end\n", queryID, explanation.String())
+	log.Infof("query explain start %s:\n%s\nquery explain end\n", queryID, explanation.String())
 
 	benches = &Benches{
 		QueryID: queryID,
