@@ -63,23 +63,31 @@ func NewGenerator(db *database.Database, exec executor.Executor, keymaps []keyma
 }
 
 func (g *Generator) SelectStmt(options Options) (string, error) {
-	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
-	selectStmt, err := g.PrepareSelect(tables, columnsList)
+	stmt, err := g.NormalSelect(options)
 	if err != nil {
 		return "", err
+	}
+	return utils.BufferOut(stmt)
+}
+
+func (g *Generator) NormalSelect(options Options) (stmt *ast.SelectStmt, err error) {
+	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
+	stmt, err = g.PrepareSelect(tables, columnsList)
+	if err != nil {
+		return
 	}
 
 	// control the max count of order by clause
 	orderBy := g.RdOrderBy(options, tables, columnsList)
 
 	if len(orderBy) != 0 {
-		selectStmt.OrderBy = &ast.OrderByClause{Items: orderBy}
+		stmt.OrderBy = &ast.OrderByClause{Items: orderBy}
 	}
 	if options.Limit != 0 {
-		selectStmt.Limit = &ast.Limit{Count: utils.NewValueExpr(options.Limit)}
+		stmt.Limit = &ast.Limit{Count: utils.NewValueExpr(options.Limit)}
 	}
 
-	return utils.BufferOut(selectStmt)
+	return
 }
 
 func (g *Generator) PrepareSelect(tables []string, columnsList [][]*database.Column) (*ast.SelectStmt, error) {
