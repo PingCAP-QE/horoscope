@@ -264,7 +264,7 @@ func RdInRange(column *database.Column, value []byte, exec executor.Executor) (r
 	return
 }
 
-func RdExpr(exec executor.Executor, column *database.Column, value []byte) ast.ExprNode {
+func RdRangeConditionExpr(exec executor.Executor, column *database.Column, value []byte) ast.ExprNode {
 	opList := make([]RangeCondition, 0)
 	for _, op := range conditions {
 		if op.Suit(column.Type, value) {
@@ -278,4 +278,14 @@ func RdExpr(exec executor.Executor, column *database.Column, value []byte) ast.E
 			return expr
 		}
 	}
+}
+
+func RdAggregateExpr(column *database.Column) ast.ExprNode {
+	fnList := make([]AggregateFunc, 0)
+	for _, fn := range aggregates {
+		if fn.Suit(column.Type) {
+			fnList = append(fnList, fn)
+		}
+	}
+	return fnList[Rd(len(fnList))].RdExpr(column)
 }

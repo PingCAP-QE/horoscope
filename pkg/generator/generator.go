@@ -42,10 +42,12 @@ type (
 		Limit                int
 
 		// control order by
-		StableOrderBy     bool
-		MaxOrderByColumns int
+		StableOrderBy bool
+		MaxByItems    int
 
 		EnableKeyMap bool
+
+		AggregateWeight float64
 	}
 )
 
@@ -62,14 +64,88 @@ func NewGenerator(db *database.Database, exec executor.Executor, keymaps []keyma
 	return g
 }
 
-func (g *Generator) SelectStmt(options Options) (string, error) {
-	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
-
-	if len(tables) == 0 {
-		return "", fmt.Errorf("database `%s` is empty", g.db.Name)
+func (g *Generator) SelectStmt(options Options) (query string, err error) {
+	var stmt *ast.SelectStmt
+	if RdFloat64() < options.AggregateWeight {
+		stmt, err = g.AggregateSelect(options)
+	} else {
+		stmt, err = g.NormalSelect(options)
 	}
 
-	selectStmt := &ast.SelectStmt{
+	if err != nil {
+		return
+	}
+	return utils.BufferOut(stmt)
+}
+
+func (g *Generator) NormalSelect(options Options) (stmt *ast.SelectStmt, err error) {
+	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
+	stmt, err = g.PrepareSelect(tables, columnsList)
+	if err != nil {
+		return
+	}
+
+	// control the max count of order by clause
+	orderBy := g.RdOrderBy(options, tables, columnsList)
+
+	if len(orderBy) != 0 {
+		stmt.OrderBy = &ast.OrderByClause{Items: orderBy}
+	}
+	if options.Limit != 0 {
+		stmt.Limit = &ast.Limit{Count: utils.NewValueExpr(options.Limit)}
+	}
+
+	return
+}
+
+func (g *Generator) AggregateSelect(options Options) (stmt *ast.SelectStmt, err error) {
+	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
+	stmt, err = g.PrepareSelect(tables, columnsList)
+	if err != nil {
+		return
+	}
+
+	items, groupColumns := g.RdGroupBy(options.MaxByItems, columnsList)
+	fields := make([]*ast.SelectField, 0)
+
+	for _, item := range items {
+		fields = append(fields, &ast.SelectField{Expr: item.Expr})
+	}
+
+	for _, columns := range columnsList {
+		for _, column := range columns {
+			if !groupColumns[column] {
+				fields = append(fields, &ast.SelectField{Expr: RdAggregateExpr(column)})
+			}
+		}
+	}
+
+	if len(items) > 0 {
+		stmt.GroupBy = &ast.GroupByClause{Items: items}
+		stmt.OrderBy = &ast.OrderByClause{Items: items}
+	}
+	stmt.Fields.Fields = fields
+
+	if options.Limit != 0 {
+		stmt.Limit = &ast.Limit{Count: utils.NewValueExpr(options.Limit)}
+	}
+
+	return
+}
+
+func (g *Generator) PrepareSelect(tables []string, columnsList [][]*database.Column) (*ast.SelectStmt, error) {
+	if len(tables) == 0 {
+		return nil, fmt.Errorf("database `%s` is empty", g.db.Name)
+	}
+
+	tableRefs := g.TableRefsClause(tables)
+
+	valuesList, err := g.RdValuesList(tableRefs, columnsList)
+	if err != nil {
+		return nil, err
+	}
+
+	stmt := &ast.SelectStmt{
 		SelectStmtOpts: &ast.SelectStmtOpts{
 			SQLCache: true,
 		},
@@ -80,17 +156,23 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 				},
 			},
 		},
-		From: &ast.TableRefsClause{
-			TableRefs: &ast.Join{},
-		},
+		From:  tableRefs,
+		Where: g.WhereExpr(columnsList, valuesList),
 	}
 
-	selectStmt.From.TableRefs.Left = &ast.TableName{Name: model.NewCIStr(tables[0])}
+	return stmt, nil
+}
+
+func (g *Generator) TableRefsClause(tables []string) *ast.TableRefsClause {
+	clause := &ast.TableRefsClause{
+		TableRefs: &ast.Join{},
+	}
+	clause.TableRefs.Left = &ast.TableName{Name: model.NewCIStr(tables[0])}
 	for _, table := range tables[1:] {
-		selectStmt.From.TableRefs.Right = &ast.TableName{Name: model.NewCIStr(table)}
+		clause.TableRefs.Right = &ast.TableName{Name: model.NewCIStr(table)}
 		if g.keyMatcher != nil {
 			if keyPair := g.keyMatcher.MatchRandom(tables[0], table); keyPair != nil {
-				selectStmt.From.TableRefs.On = &ast.OnCondition{
+				clause.TableRefs.On = &ast.OnCondition{
 					Expr: &ast.BinaryOperationExpr{
 						L:  &ast.ColumnNameExpr{Name: keyPair.K1.ColumnName()},
 						R:  &ast.ColumnNameExpr{Name: keyPair.K2.ColumnName()},
@@ -99,56 +181,43 @@ func (g *Generator) SelectStmt(options Options) (string, error) {
 				}
 			}
 		}
-		selectStmt.From.TableRefs = &ast.Join{Left: selectStmt.From.TableRefs}
+		clause.TableRefs = &ast.Join{Left: clause.TableRefs}
 	}
 
-	if len(columnsList) > 0 {
-		valuesList, err := g.RdValuesList(*selectStmt, columnsList)
-		if err != nil {
-			return "", err
-		}
+	return clause
+}
 
-		for i, columns := range columnsList {
-			if len(columns) > 0 {
-				values := valuesList[i]
-				var expr ast.ExprNode
-				for j, column := range columns {
-					subExpr := RdExpr(g.exec, column, values[j])
-					if expr == nil {
-						expr = subExpr
-					} else {
-						expr = &ast.BinaryOperationExpr{
-							L:  expr,
-							R:  subExpr,
-							Op: RdLogicOp(),
-						}
+func (g *Generator) WhereExpr(columnsList [][]*database.Column, valuesList [][][]byte) ast.ExprNode {
+	var whereExpr ast.ExprNode
+	for i, columns := range columnsList {
+		if len(columns) > 0 {
+			values := valuesList[i]
+			var expr ast.ExprNode
+			for j, column := range columns {
+				subExpr := RdRangeConditionExpr(g.exec, column, values[j])
+				if expr == nil {
+					expr = subExpr
+				} else {
+					expr = &ast.BinaryOperationExpr{
+						L:  expr,
+						R:  subExpr,
+						Op: RdLogicOp(),
 					}
 				}
+			}
 
-				if selectStmt.Where == nil {
-					selectStmt.Where = expr
-				} else {
-					selectStmt.Where = &ast.BinaryOperationExpr{
-						L:  selectStmt.Where,
-						R:  expr,
-						Op: opcode.LogicAnd,
-					}
+			if whereExpr == nil {
+				whereExpr = expr
+			} else {
+				whereExpr = &ast.BinaryOperationExpr{
+					L:  whereExpr,
+					R:  expr,
+					Op: opcode.LogicAnd,
 				}
 			}
 		}
 	}
-
-	// control the max count of order by clause
-	orderBy := g.RdOrderBy(options, tables, columnsList)
-
-	if len(orderBy) != 0 {
-		selectStmt.OrderBy = &ast.OrderByClause{Items: orderBy}
-	}
-	if options.Limit != 0 {
-		selectStmt.Limit = &ast.Limit{Count: utils.NewValueExpr(options.Limit)}
-	}
-
-	return utils.BufferOut(selectStmt)
+	return whereExpr
 }
 
 func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Column) {
@@ -187,6 +256,21 @@ func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Colu
 	return tables, keysList
 }
 
+func (g *Generator) RdGroupBy(maxByItems int, tableColumns [][]*database.Column) ([]*ast.ByItem, map[*database.Column]bool) {
+	itemNums := Rd(maxByItems + 1)
+	items := make([]*ast.ByItem, 0, itemNums)
+	columnSet := make(map[*database.Column]bool)
+	for i := 0; i < itemNums; i++ {
+		columns := tableColumns[Rd(len(tableColumns))]
+		column := columns[Rd(len(columns))]
+		if !columnSet[column] {
+			items = append(items, &ast.ByItem{Expr: &ast.ColumnNameExpr{Name: column.ColumnName()}})
+			columnSet[column] = true
+		}
+	}
+	return items, columnSet
+}
+
 func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][]*database.Column) []*ast.ByItem {
 	var cols []*ast.ByItem
 	if options.StableOrderBy {
@@ -221,7 +305,7 @@ func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][
 		cols[i], cols[j] = cols[j], cols[i]
 	})
 
-	elemLen := Rd(utils.MinInt(options.MaxOrderByColumns, len(cols)) + 1)
+	elemLen := Rd(utils.MinInt(options.MaxByItems, len(cols)) + 1)
 	return cols[:elemLen]
 }
 
@@ -242,7 +326,7 @@ func (g *Generator) RdValues(table string, columns []*database.Column) (values [
 	return
 }
 
-func (g *Generator) RdValuesList(stmt ast.SelectStmt, columnsList [][]*database.Column) (valuesList [][][]byte, err error) {
+func (g *Generator) RdValuesList(tableRefs *ast.TableRefsClause, columnsList [][]*database.Column) (valuesList [][][]byte, err error) {
 	valuesList = make([][][]byte, 0, len(columnsList))
 
 	fields := &ast.FieldList{}
@@ -257,18 +341,22 @@ func (g *Generator) RdValuesList(stmt ast.SelectStmt, columnsList [][]*database.
 		}
 	}
 
-	stmt.Fields = fields
-	stmt.OrderBy = &ast.OrderByClause{
-		Items: []*ast.ByItem{
-			{
-				Expr: &ast.FuncCallExpr{
-					FnName: model.NewCIStr("RAND"),
+	stmt := ast.SelectStmt{
+		SelectStmtOpts: &ast.SelectStmtOpts{},
+		Fields:         fields,
+		From:           tableRefs,
+		OrderBy: &ast.OrderByClause{
+			Items: []*ast.ByItem{
+				{
+					Expr: &ast.FuncCallExpr{
+						FnName: model.NewCIStr("RAND"),
+					},
 				},
 			},
 		},
-	}
-	stmt.Limit = &ast.Limit{
-		Count: utils.NewValueExpr(1),
+		Limit: &ast.Limit{
+			Count: utils.NewValueExpr(1),
+		},
 	}
 
 	query, err := utils.BufferOut(&stmt)
