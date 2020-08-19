@@ -371,6 +371,7 @@ func (g *Generator) RdValuesList(tableRefs *ast.TableRefsClause, columnsList [][
 
 	if rows.RowCount() == 0 {
 		err = fmt.Errorf("query got empty set: %s", query)
+		return
 	}
 
 	values := rows.Data[0]
