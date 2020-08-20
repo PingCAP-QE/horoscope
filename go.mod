@@ -10,13 +10,12 @@ require (
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/jedib0t/go-pretty v4.3.0+incompatible
 	github.com/magiconair/properties v1.8.0
-	github.com/pingcap/errors v0.11.5-0.20190809092503-95897b64e011
-	github.com/pingcap/go-tpc v1.0.3 // indirect
 	github.com/pingcap/parser v0.0.0-20200612092132-17a1160e5a81
 	github.com/pingcap/tidb v2.0.11+incompatible
 	github.com/pingcap/tipb v0.0.0-20200610045017-b69a98cfcf6b // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	github.com/sirupsen/logrus v1.6.0
+	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/stretchr/testify v1.6.1
 	github.com/urfave/cli/v2 v2.2.0
 	golang.org/x/perf v0.0.0-20200318175901-9c9101da8316
