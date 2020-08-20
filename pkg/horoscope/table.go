@@ -39,7 +39,7 @@ type Row struct {
 	BestPlanDurDev    float64            `json:"bestPlanDurDev"`
 	OptimalPlan       []string           `json:"optimalPlan"`
 	Effectiveness     float64            `json:"effectiveness"`
-	EstRowsQError     map[string]float64 `json:"estRowsQError"`
+	EstRowsQError     map[string]float64 `json:"-"`
 }
 
 func (r *Row) toTableRows() table.Row {

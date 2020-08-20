@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"reflect"
 
@@ -10,14 +11,11 @@ import (
 )
 
 func QError(est, act float64) float64 {
-	if act == 0 || est == 0 {
-		return math.Inf(1)
+	if est <= 0 || act <= 0 {
+		panic(fmt.Sprintf("est or act value cannot be less or equal to zero"))
 	}
 	z := est / act
 	zp := act / est
-	if z < 0 {
-		return math.Inf(1)
-	}
 	return math.Max(z, zp)
 }
 

@@ -76,10 +76,13 @@ func CollectEstAndActRows(ei *ExplainAnalyzeInfo) []*CardinalityInfo {
 	if ei == nil {
 		return nil
 	}
-	infos := []*CardinalityInfo{{
-		ExplainAnalyzeInfo: ei,
-		QError:             utils.QError(ei.EstRows, ei.ActRows),
-	}}
+	var infos []*CardinalityInfo
+	if ei.EstRows > 0 && ei.ActRows > 0 {
+		infos = append(infos, &CardinalityInfo{
+			ExplainAnalyzeInfo: ei,
+			QError:             utils.QError(ei.EstRows, ei.ActRows),
+		})
+	}
 	if len(ei.Items) != 0 {
 		for _, e := range ei.Items {
 			infos = append(infos, CollectEstAndActRows(e)...)
