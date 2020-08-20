@@ -7,9 +7,9 @@ PACKAGES  := $$($(PACKAGE_LIST))
 
 GOBUILD=$(GO) build
 
-default: horoscope
+default: build
 
-horoscope:
+build:
 	$(GOBUILD) $(GOMOD) -o bin/horo cmd/*.go
 
 fmt:
