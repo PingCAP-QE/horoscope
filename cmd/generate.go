@@ -53,6 +53,11 @@ var (
 				Usage:       "enable keymap",
 				Destination: &genOptions.EnableKeyMap,
 			},
+			&cli.BoolFlag{
+				Name:        "key-only",
+				Usage:       "only use key columns",
+				Destination: &genOptions.KeyOnly,
+			},
 			&cli.IntFlag{
 				Name:        "table-count",
 				Aliases:     []string{"c"},

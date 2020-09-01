@@ -40,6 +40,7 @@ type (
 		MaxTables            int
 		MinDurationThreshold time.Duration
 		Limit                int
+		KeyOnly              bool
 
 		// control order by
 		StableOrderBy bool
@@ -79,7 +80,7 @@ func (g *Generator) SelectStmt(options Options) (query string, err error) {
 }
 
 func (g *Generator) NormalSelect(options Options) (stmt *ast.SelectStmt, err error) {
-	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
+	tables, columnsList := g.RdTablesAndKeys(&options)
 	stmt, err = g.PrepareSelect(tables, columnsList)
 	if err != nil {
 		return
@@ -99,7 +100,7 @@ func (g *Generator) NormalSelect(options Options) (stmt *ast.SelectStmt, err err
 }
 
 func (g *Generator) AggregateSelect(options Options) (stmt *ast.SelectStmt, err error) {
-	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
+	tables, columnsList := g.RdTablesAndKeys(&options)
 	stmt, err = g.PrepareSelect(tables, columnsList)
 	if err != nil {
 		return
@@ -220,8 +221,8 @@ func (g *Generator) WhereExpr(columnsList [][]*database.Column, valuesList [][][
 	return whereExpr
 }
 
-func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Column) {
-	tableNums := Rd(maxTables) + 1
+func (g *Generator) RdTablesAndKeys(option *Options) ([]string, [][]*database.Column) {
+	tableNums := Rd(option.MaxTables) + 1
 	keysList := make([][]*database.Column, 0, tableNums)
 	tables := make([]string, 0, tableNums)
 
@@ -251,7 +252,12 @@ func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Colu
 			continue
 		}
 		tables = append(tables, tableName)
-		keysList = append(keysList, table.Keys())
+
+		if option.KeyOnly {
+			keysList = append(keysList, table.Keys())
+		} else {
+			keysList = append(keysList, table.Columns)
+		}
 	}
 	return tables, keysList
 }
