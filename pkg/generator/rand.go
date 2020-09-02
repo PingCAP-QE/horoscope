@@ -52,6 +52,10 @@ func Rd(n int) int {
 	return rand.Intn(n)
 }
 
+func RdBool() bool {
+	return Rd(2) == 1
+}
+
 func RdInt63(n int64) int64 {
 	return rand.Int63n(n)
 }
@@ -288,4 +292,29 @@ func RdAggregateExpr(column *database.Column) ast.ExprNode {
 		}
 	}
 	return fnList[Rd(len(fnList))].RdExpr(column)
+}
+
+func RdTowColumns(columnsList [][]*database.Column) []*database.Column {
+	columnSlice := make([]*database.Column, 0)
+	for _, columns := range columnsList {
+		for _, column := range columns {
+			columnSlice = append(columnSlice, column)
+		}
+	}
+	if len(columnSlice) < 2 {
+		return nil
+	}
+
+	columnMap := make(map[*database.Column]bool)
+
+	for len(columnMap) < 2 {
+		columnMap[columnSlice[Rd(len(columnSlice))]] = true
+	}
+
+	ret := make([]*database.Column, 0, 2)
+	for column := range columnMap {
+		ret = append(ret, column)
+	}
+
+	return ret
 }
