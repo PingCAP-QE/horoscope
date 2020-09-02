@@ -93,9 +93,9 @@ func (g *Generator) ComposeStmt(options Options) (query string, err error) {
 		}
 		// TODO: control random by options
 		if RdBool() {
-			stmt, err = g.ComposeSelect(options, tables[start:i+1], columnsList, stmt)
+			stmt, err = g.ComposeSelect(options, tables[start:i+1], columnsList[start:], stmt)
 		} else {
-			stmt, err = g.ComposeUnion(options, tables[start:i+1], columnsList, stmt)
+			stmt, err = g.ComposeUnion(options, tables[start:i+1], columnsList[start:], stmt)
 		}
 		if err != nil {
 			return
@@ -156,7 +156,11 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 			Expr:   composeCountExpr,
 		},
 	}
-	byItems := []*ast.ByItem{{Expr: composeCountExpr}}
+	byItems := []*ast.ByItem{{Expr: &ast.ColumnNameExpr{
+		Name: &ast.ColumnName{
+			Name: ComposeCountAsName,
+		},
+	}}}
 
 	// TODO: control random by options
 	if RdBool() {
@@ -171,11 +175,6 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 	// TODO: control random by options
 	if RdBool() {
 		stmt.OrderBy = &ast.OrderByClause{Items: byItems}
-	}
-
-	// TODO: control random by options
-	if RdBool() {
-		stmt.GroupBy = &ast.GroupByClause{Items: byItems}
 	}
 
 	// TODO: control random by options
