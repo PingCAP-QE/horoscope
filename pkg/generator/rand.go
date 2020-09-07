@@ -318,3 +318,17 @@ func RdTowColumns(columnsList [][]*database.Column) []*database.Column {
 
 	return ret
 }
+
+func RdColumns(columnsList [][]*database.Column) *database.Column {
+	columnSlice := make([]*database.Column, 0)
+	for _, columns := range columnsList {
+		for _, column := range columns {
+			columnSlice = append(columnSlice, column)
+		}
+	}
+	if len(columnSlice) < 1 {
+		return nil
+	}
+
+	return columnSlice[Rd(len(columnSlice))]
+}

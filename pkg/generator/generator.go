@@ -101,6 +101,17 @@ func (g *Generator) ComposeStmt(options Options) (query string, err error) {
 			return
 		}
 	}
+
+	// TODO: control random by options
+	if RdBool() {
+		stmt.TableHints = []*ast.TableOptimizerHint{
+			{
+				HintName: model.NewCIStr("MERGE_JOIN"),
+				Tables:   []ast.HintTable{{TableName: model.NewCIStr(tables[0])}},
+			},
+		}
+	}
+
 	return utils.BufferOut(stmt)
 }
 
@@ -156,30 +167,36 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 			Expr:   composeCountExpr,
 		},
 	}
-	byItems := []*ast.ByItem{{Expr: &ast.ColumnNameExpr{
-		Name: &ast.ColumnName{
-			Name: ComposeCountAsName,
-		},
-	}}}
 
 	// TODO: control random by options
 	if RdBool() {
-		stmt.TableHints = []*ast.TableOptimizerHint{
-			{
-				HintName: model.NewCIStr("MERGE_JOIN"),
-				Tables:   []ast.HintTable{{TableName: model.NewCIStr(tables[0])}},
-			},
+		if rdColumn := RdColumns(columnsList); rdColumn != nil {
+			byItems := []*ast.ByItem{{Expr: &ast.ColumnNameExpr{
+				Name: rdColumn.ColumnName(),
+			}}}
+			stmt.GroupBy = &ast.GroupByClause{Items: byItems}
+			stmt.OrderBy = &ast.OrderByClause{Items: byItems}
+			stmt.IsInBraces = true
 		}
 	}
 
 	// TODO: control random by options
 	if RdBool() {
-		stmt.OrderBy = &ast.OrderByClause{Items: byItems}
+		if stmt.OrderBy == nil {
+			stmt.OrderBy = &ast.OrderByClause{Items: make([]*ast.ByItem, 0)}
+			stmt.IsInBraces = true
+		}
+		stmt.OrderBy.Items = append(stmt.OrderBy.Items, &ast.ByItem{Expr: &ast.ColumnNameExpr{
+			Name: &ast.ColumnName{
+				Name: ComposeCountAsName,
+			},
+		}})
 	}
 
 	// TODO: control random by options
 	if RdBool() {
-		stmt.Limit = &ast.Limit{Count: utils.NewValueExpr(1)}
+		stmt.Limit = &ast.Limit{Count: utils.NewValueExpr(Rd(10) + 1)}
+		stmt.IsInBraces = true
 	}
 
 	return stmt, nil
