@@ -36,7 +36,7 @@ func Warning(row Row) (warning error, err error) {
 
 	log.WithFields(log.Fields{
 		"code": code,
-		"msg":  row[2],
+		"msg":  string(row[2]),
 	}).Debug("sql warning")
 
 	warning = &mysql.MySQLError{Number: uint16(code), Message: string(row[2])}
