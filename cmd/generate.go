@@ -34,12 +34,20 @@ var (
 	genOptions  generator.Options
 	prepareFile = path.Join(dynWorkload, "prepare.sql")
 	queriesDir  = path.Join(dynWorkload, "queries")
+	genMode     string
 
 	genCommand = &cli.Command{
 		Name:    "gen",
 		Aliases: []string{"g"},
 		Usage:   "Generate a dynamic bench scheme",
 		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "mode",
+				Aliases:     []string{"m"},
+				Usage:       "mode of generator, `< bench | op-compose >`",
+				Value:       "bench",
+				Destination: &genMode,
+			},
 			&cli.IntFlag{
 				Name:        "queries",
 				Aliases:     []string{"q"},
@@ -52,6 +60,11 @@ var (
 				Aliases:     []string{"k"},
 				Usage:       "enable keymap",
 				Destination: &genOptions.EnableKeyMap,
+			},
+			&cli.BoolFlag{
+				Name:        "key-only",
+				Usage:       "only use key columns",
+				Destination: &genOptions.KeyOnly,
 			},
 			&cli.IntFlag{
 				Name:        "table-count",
@@ -117,12 +130,20 @@ var (
 			gen := generator.NewGenerator(Database, Pool.Executor(), keymaps)
 			plans := make([]string, 0, queryNums)
 			for len(plans) < queryNums {
-				stmt, err := gen.SelectStmt(genOptions)
+				var query string
+				switch genMode {
+				case "bench":
+					query, err = gen.BenchStmt(genOptions)
+				case "op-compose":
+					query, err = gen.ComposeStmt(genOptions)
+				default:
+					err = fmt.Errorf("invalid mode: '%s'", genMode)
+				}
 				if err != nil {
 					return err
 				}
-				log.WithField("query", stmt).Debug("new query generated, checking...")
-				dur, err := getQueryRunDuration(Tx, stmt)
+				log.WithField("query", query).Debug("new query generated, checking...")
+				dur, err := getQueryRunDuration(Tx, query)
 				if err != nil {
 					return err
 				}
@@ -130,7 +151,7 @@ var (
 					log.Tracef("query duration %v is less than %v, so ignore it", dur, genOptions.MinDurationThreshold)
 					continue
 				}
-				plans = append(plans, stmt)
+				plans = append(plans, query)
 			}
 			err = ioutil.WriteFile(prepareFile, []byte(genPrepare(plans)), 0644)
 			if err != nil {

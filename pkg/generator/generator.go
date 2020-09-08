@@ -29,6 +29,24 @@ import (
 	"github.com/chaos-mesh/horoscope/pkg/utils"
 )
 
+var (
+	ComposeTmpTable = model.NewCIStr("tmp")
+
+	ComposeCountAsName = model.NewCIStr("val")
+
+	ComposeSumExpr = &ast.AggregateFuncExpr{
+		F: ast.AggFuncSum,
+		Args: []ast.ExprNode{
+			&ast.ColumnNameExpr{
+				Name: &ast.ColumnName{
+					Name:  ComposeCountAsName,
+					Table: ComposeTmpTable,
+				},
+			},
+		},
+	}
+)
+
 type (
 	Generator struct {
 		db         *database.Database
@@ -40,6 +58,7 @@ type (
 		MaxTables            int
 		MinDurationThreshold time.Duration
 		Limit                int
+		KeyOnly              bool
 
 		// control order by
 		StableOrderBy bool
@@ -64,22 +83,173 @@ func NewGenerator(db *database.Database, exec executor.Executor, keymaps []keyma
 	return g
 }
 
-func (g *Generator) SelectStmt(options Options) (query string, err error) {
+func (g *Generator) ComposeStmt(options Options) (query string, err error) {
+	tables, columnsList := g.RdTablesAndKeys(&options)
 	var stmt *ast.SelectStmt
-	if RdFloat64() < options.AggregateWeight {
-		stmt, err = g.AggregateSelect(options)
-	} else {
-		stmt, err = g.NormalSelect(options)
+	for i := 0; i < len(tables); i++ {
+		start := i
+		if i != len(tables)-1 {
+			i += Rd(2)
+		}
+		// TODO: control random by options
+		if RdBool() {
+			stmt, err = g.ComposeSelect(options, tables[start:i+1], columnsList[start:], stmt)
+		} else {
+			stmt, err = g.ComposeUnion(options, tables[start:i+1], columnsList[start:], stmt)
+		}
+		if err != nil {
+			return
+		}
 	}
 
+	// TODO: control random by options
+	if RdBool() {
+		stmt.TableHints = []*ast.TableOptimizerHint{
+			{
+				HintName: model.NewCIStr("MERGE_JOIN"),
+				Tables:   []ast.HintTable{{TableName: model.NewCIStr(tables[0])}},
+			},
+		}
+	}
+
+	return utils.BufferOut(stmt)
+}
+
+func (g *Generator) ComposeSelect(options Options, tables []string, columnsList [][]*database.Column, composedStmt *ast.SelectStmt) (*ast.SelectStmt, error) {
+	if len(tables) == 0 {
+		return nil, fmt.Errorf("database `%s` is empty", g.db.Name)
+	}
+
+	tableRefs := g.TableRefsClause(tables)
+
+	stmt := &ast.SelectStmt{
+		SelectStmtOpts: &ast.SelectStmtOpts{
+			SQLCache: true,
+		},
+		Fields: &ast.FieldList{},
+		From:   tableRefs,
+	}
+
+	if twoColumns := RdTowColumns(columnsList); twoColumns != nil {
+		stmt.Where = &ast.BinaryOperationExpr{
+			Op: opcode.NE,
+			L:  &ast.ColumnNameExpr{Name: twoColumns[0].ColumnName()},
+			R:  &ast.ColumnNameExpr{Name: twoColumns[1].ColumnName()},
+		}
+	}
+
+	if composedStmt != nil {
+		composedExpr := &ast.BinaryOperationExpr{
+			Op: opcode.NE,
+			L:  &ast.SubqueryExpr{Query: composedStmt},
+			R:  utils.NewValueExpr(RdInt64()),
+		}
+
+		if stmt.Where == nil {
+			stmt.Where = composedExpr
+		} else {
+			stmt.Where = &ast.BinaryOperationExpr{
+				Op: opcode.LogicOr,
+				L:  stmt.Where,
+				R:  composedExpr,
+			}
+		}
+	}
+
+	composeCountExpr := &ast.AggregateFuncExpr{
+		F:    ast.AggFuncCount,
+		Args: []ast.ExprNode{utils.NewValueExpr(1)},
+	}
+
+	stmt.Fields.Fields = []*ast.SelectField{
+		{
+			AsName: ComposeCountAsName,
+			Expr:   composeCountExpr,
+		},
+	}
+
+	// TODO: control random by options
+	if RdBool() {
+		if rdColumn := RdColumns(columnsList); rdColumn != nil {
+			byItems := []*ast.ByItem{{Expr: &ast.ColumnNameExpr{
+				Name: rdColumn.ColumnName(),
+			}}}
+			stmt.GroupBy = &ast.GroupByClause{Items: byItems}
+			stmt.OrderBy = &ast.OrderByClause{Items: byItems}
+			stmt.IsInBraces = true
+		}
+	}
+
+	// TODO: control random by options
+	if RdBool() {
+		if stmt.OrderBy == nil {
+			stmt.OrderBy = &ast.OrderByClause{Items: make([]*ast.ByItem, 0)}
+			stmt.IsInBraces = true
+		}
+		stmt.OrderBy.Items = append(stmt.OrderBy.Items, &ast.ByItem{Expr: &ast.ColumnNameExpr{
+			Name: &ast.ColumnName{
+				Name: ComposeCountAsName,
+			},
+		}})
+	}
+
+	// TODO: control random by options
+	if RdBool() {
+		stmt.Limit = &ast.Limit{Count: utils.NewValueExpr(Rd(10) + 1)}
+		stmt.IsInBraces = true
+	}
+
+	return stmt, nil
+}
+
+func (g *Generator) ComposeUnion(options Options, tables []string, columnsList [][]*database.Column, composedStmt *ast.SelectStmt) (stmt *ast.SelectStmt, err error) {
+	selectList := []*ast.SelectStmt{nil, nil}
+	selectList[0], err = g.ComposeSelect(options, tables, columnsList, composedStmt)
+	if err != nil {
+		return
+	}
+	selectList[1], err = g.ComposeSelect(options, tables, columnsList, composedStmt)
+	if err != nil {
+		return
+	}
+	stmt = &ast.SelectStmt{
+		SelectStmtOpts: &ast.SelectStmtOpts{
+			SQLCache: true,
+		},
+		Fields: &ast.FieldList{},
+		From: &ast.TableRefsClause{TableRefs: &ast.Join{
+			Left: &ast.TableSource{
+				AsName: ComposeTmpTable,
+				Source: &ast.UnionStmt{SelectList: &ast.UnionSelectList{Selects: selectList}},
+			},
+		}},
+	}
+	stmt.Fields.Fields = []*ast.SelectField{
+		{
+			Expr: ComposeSumExpr,
+		},
+	}
+	return
+}
+
+func (g *Generator) BenchStmt(options Options) (query string, err error) {
+	tables, columnsList := g.RdTablesAndKeys(&options)
+	stmt, err := g.BenchSelect(options, tables, columnsList)
 	if err != nil {
 		return
 	}
 	return utils.BufferOut(stmt)
 }
 
-func (g *Generator) NormalSelect(options Options) (stmt *ast.SelectStmt, err error) {
-	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
+func (g *Generator) BenchSelect(options Options, tables []string, columnsList [][]*database.Column) (*ast.SelectStmt, error) {
+	if RdFloat64() < options.AggregateWeight {
+		return g.AggregateSelect(options, tables, columnsList)
+	} else {
+		return g.NormalSelect(options, tables, columnsList)
+	}
+}
+
+func (g *Generator) NormalSelect(options Options, tables []string, columnsList [][]*database.Column) (stmt *ast.SelectStmt, err error) {
 	stmt, err = g.PrepareSelect(tables, columnsList)
 	if err != nil {
 		return
@@ -98,8 +268,7 @@ func (g *Generator) NormalSelect(options Options) (stmt *ast.SelectStmt, err err
 	return
 }
 
-func (g *Generator) AggregateSelect(options Options) (stmt *ast.SelectStmt, err error) {
-	tables, columnsList := g.RdTablesAndKeys(options.MaxTables)
+func (g *Generator) AggregateSelect(options Options, tables []string, columnsList [][]*database.Column) (stmt *ast.SelectStmt, err error) {
 	stmt, err = g.PrepareSelect(tables, columnsList)
 	if err != nil {
 		return
@@ -220,8 +389,8 @@ func (g *Generator) WhereExpr(columnsList [][]*database.Column, valuesList [][][
 	return whereExpr
 }
 
-func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Column) {
-	tableNums := Rd(maxTables) + 1
+func (g *Generator) RdTablesAndKeys(option *Options) ([]string, [][]*database.Column) {
+	tableNums := Rd(option.MaxTables) + 1
 	keysList := make([][]*database.Column, 0, tableNums)
 	tables := make([]string, 0, tableNums)
 
@@ -251,7 +420,12 @@ func (g *Generator) RdTablesAndKeys(maxTables int) ([]string, [][]*database.Colu
 			continue
 		}
 		tables = append(tables, tableName)
-		keysList = append(keysList, table.Keys())
+
+		if option.KeyOnly {
+			keysList = append(keysList, table.Keys())
+		} else {
+			keysList = append(keysList, table.Columns)
+		}
 	}
 	return tables, keysList
 }
