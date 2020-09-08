@@ -138,6 +138,40 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 		}
 	}
 
+	// TODO: control random by options
+	if RdBool() {
+		var pointGetExpr ast.ExprNode
+		// pointget
+		tableRefs := g.TableRefsClause(tables)
+
+		valuesList, err := g.RdValuesList(tableRefs, columnsList[:len(tables)])
+		if err != nil {
+			return nil, err
+		}
+
+		i := Rd(len(valuesList))
+		j := Rd(len(valuesList[i]))
+
+		// TODO: control random by options
+		if RdBool() {
+			// pointget
+			pointGetExpr = Equal.RdExpr(columnsList[i][j], valuesList[i][j], g.exec)
+		} else {
+			// batch pointget
+			pointGetExpr = In.RdExpr(columnsList[i][j], valuesList[i][j], g.exec)
+		}
+
+		if stmt.Where == nil {
+			stmt.Where = pointGetExpr
+		} else if pointGetExpr != nil {
+			stmt.Where = &ast.BinaryOperationExpr{
+				Op: opcode.LogicAnd,
+				L:  stmt.Where,
+				R:  pointGetExpr,
+			}
+		}
+	}
+
 	if composedStmt != nil {
 		composedExpr := &ast.BinaryOperationExpr{
 			Op: opcode.NE,
