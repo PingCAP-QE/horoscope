@@ -124,15 +124,16 @@ func (g *Generator) ComposeStmt(options Options) (query string, err error) {
 		}
 	}
 
-	// TODO: control random by options
-	if RdBool() {
-		stmt.TableHints = []*ast.TableOptimizerHint{
-			{
-				HintName: model.NewCIStr("MERGE_JOIN"),
-				Tables:   []ast.HintTable{{TableName: model.NewCIStr(tables[0])}},
-			},
-		}
-	}
+	// TODO: support merge join
+	//// TODO: control random by options
+	//if RdBool() {
+	//	stmt.TableHints = []*ast.TableOptimizerHint{
+	//		{
+	//			HintName: model.NewCIStr("MERGE_JOIN"),
+	//			Tables:   []ast.HintTable{{TableName: model.NewCIStr(tables[0])}},
+	//		},
+	//	}
+	//}
 
 	return utils.BufferOut(stmt)
 }
