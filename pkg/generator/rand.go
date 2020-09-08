@@ -295,26 +295,26 @@ func RdAggregateExpr(column *database.Column) ast.ExprNode {
 }
 
 func RdTowColumns(columnsList [][]*database.Column) []*database.Column {
-	columnSlice := make([]*database.Column, 0)
-	for _, columns := range columnsList {
-		for _, column := range columns {
-			columnSlice = append(columnSlice, column)
-		}
-	}
-	if len(columnSlice) < 2 {
+	ret := []*database.Column{nil, nil}
+	ret[0] = RdColumns(columnsList)
+	if ret[0] == nil {
 		return nil
 	}
 
-	columnMap := make(map[*database.Column]bool)
-
-	for len(columnMap) < 2 {
-		columnMap[columnSlice[Rd(len(columnSlice))]] = true
+	columnSlice := make([]*database.Column, 0)
+	for _, columns := range columnsList {
+		for _, column := range columns {
+			if column != ret[0] && column.Type.EvalType() == ret[0].Type.EvalType() {
+				columnSlice = append(columnSlice, column)
+			}
+		}
 	}
 
-	ret := make([]*database.Column, 0, 2)
-	for column := range columnMap {
-		ret = append(ret, column)
+	if len(columnSlice) < 1 {
+		return nil
 	}
+
+	ret[1] = columnSlice[Rd(len(columnSlice))]
 
 	return ret
 }
