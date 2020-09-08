@@ -32,20 +32,42 @@ import (
 var (
 	ComposeTmpTable = model.NewCIStr("tmp")
 
-	ComposeCountAsName = model.NewCIStr("val")
+	ComposeValueAsName = model.NewCIStr("val")
 
 	ComposeSumExpr = &ast.AggregateFuncExpr{
 		F: ast.AggFuncSum,
 		Args: []ast.ExprNode{
 			&ast.ColumnNameExpr{
 				Name: &ast.ColumnName{
-					Name:  ComposeCountAsName,
+					Name:  ComposeValueAsName,
 					Table: ComposeTmpTable,
 				},
 			},
 		},
 	}
 )
+
+func SumSelect(source ast.ResultSetNode) *ast.SelectStmt {
+	return &ast.SelectStmt{
+		SelectStmtOpts: &ast.SelectStmtOpts{
+			SQLCache: true,
+		},
+		Fields: &ast.FieldList{
+			Fields: []*ast.SelectField{
+				{
+					AsName: ComposeValueAsName,
+					Expr:   ComposeSumExpr,
+				},
+			},
+		},
+		From: &ast.TableRefsClause{TableRefs: &ast.Join{
+			Left: &ast.TableSource{
+				AsName: ComposeTmpTable,
+				Source: source,
+			},
+		}},
+	}
+}
 
 type (
 	Generator struct {
@@ -197,7 +219,7 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 
 	stmt.Fields.Fields = []*ast.SelectField{
 		{
-			AsName: ComposeCountAsName,
+			AsName: ComposeValueAsName,
 			Expr:   composeCountExpr,
 		},
 	}
@@ -205,12 +227,12 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 	// TODO: control random by options
 	if RdBool() {
 		if rdColumn := RdColumns(columnsList); rdColumn != nil {
-			byItems := []*ast.ByItem{{Expr: &ast.ColumnNameExpr{
+			items := []*ast.ByItem{{Expr: &ast.ColumnNameExpr{
 				Name: rdColumn.ColumnName(),
 			}}}
-			stmt.GroupBy = &ast.GroupByClause{Items: byItems}
-			stmt.OrderBy = &ast.OrderByClause{Items: byItems}
-			stmt.IsInBraces = true
+			stmt.GroupBy = &ast.GroupByClause{Items: items}
+			stmt.OrderBy = &ast.OrderByClause{Items: items}
+			stmt = SumSelect(stmt)
 		}
 	}
 
@@ -222,7 +244,7 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 		}
 		stmt.OrderBy.Items = append(stmt.OrderBy.Items, &ast.ByItem{Expr: &ast.ColumnNameExpr{
 			Name: &ast.ColumnName{
-				Name: ComposeCountAsName,
+				Name: ComposeValueAsName,
 			},
 		}})
 	}
@@ -246,23 +268,7 @@ func (g *Generator) ComposeUnion(options Options, tables []string, columnsList [
 	if err != nil {
 		return
 	}
-	stmt = &ast.SelectStmt{
-		SelectStmtOpts: &ast.SelectStmtOpts{
-			SQLCache: true,
-		},
-		Fields: &ast.FieldList{},
-		From: &ast.TableRefsClause{TableRefs: &ast.Join{
-			Left: &ast.TableSource{
-				AsName: ComposeTmpTable,
-				Source: &ast.UnionStmt{SelectList: &ast.UnionSelectList{Selects: selectList}},
-			},
-		}},
-	}
-	stmt.Fields.Fields = []*ast.SelectField{
-		{
-			Expr: ComposeSumExpr,
-		},
-	}
+	stmt = SumSelect(&ast.UnionStmt{SelectList: &ast.UnionSelectList{Selects: selectList}})
 	return
 }
 
