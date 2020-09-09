@@ -14,7 +14,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -33,11 +35,14 @@ const (
 	IndexesDir  = "indexes"
 	SchemaFile  = "schema.sql"
 	SliceDir    = "slices"
+	Config      = "horo.json"
 )
 
 var (
 	/// Config
 	mainOptions = &options.Main
+
+	saveOptions bool
 
 	/// pre initialized components
 	Pool     executor.Pool
@@ -48,6 +53,18 @@ var (
 )
 
 func main() {
+	if pathExist(Config) {
+		config, err := ioutil.ReadFile(Config)
+		if err != nil {
+			log.Fatal("fail to read config file `%s`: err: %s", Config, err.Error())
+		}
+
+		err = json.Unmarshal(config, &options)
+		if err != nil {
+			log.Fatal("wrong config file `%s`, invalid format: %s", Config, err.Error())
+		}
+	}
+
 	app := &cli.App{
 		Name:  "horoscope",
 		Usage: "An optimizer inspector for DBMS",
@@ -105,6 +122,12 @@ func main() {
 				Value:       mainOptions.Pool.MaxLifeSeconds,
 				Destination: &mainOptions.Pool.MaxLifeSeconds,
 			},
+			&cli.BoolFlag{
+				Name:        "save-options",
+				Aliases:     []string{"s"},
+				Usage:       fmt.Sprintf("save options to %s", Config),
+				Destination: &saveOptions,
+			},
 		},
 		Before: func(context *cli.Context) (err error) {
 			if err = setupLogger(); err != nil {
@@ -117,6 +140,17 @@ func main() {
 
 			Database, err = InitDatabase(Pool.Executor())
 			return
+		},
+		After: func(*cli.Context) error {
+			if saveOptions {
+				config, err := json.MarshalIndent(&options, "", "    ")
+				if err != nil {
+					return nil
+				}
+
+				return ioutil.WriteFile(Config, config, 0600)
+			}
+			return nil
 		},
 		Commands: cli.Commands{
 			benchCommand,
