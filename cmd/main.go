@@ -56,12 +56,12 @@ func main() {
 	if pathExist(Config) {
 		config, err := ioutil.ReadFile(Config)
 		if err != nil {
-			log.Fatal("fail to read config file `%s`: err: %s", Config, err.Error())
+			log.Fatalf("fail to read config file `%s`: err: %s", Config, err.Error())
 		}
 
 		err = json.Unmarshal(config, &options)
 		if err != nil {
-			log.Fatal("wrong config file `%s`, invalid format: %s", Config, err.Error())
+			log.Fatalf("wrong config file `%s`, invalid format: %s", Config, err.Error())
 		}
 	}
 
