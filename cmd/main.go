@@ -42,7 +42,7 @@ var (
 	/// Config
 	mainOptions = &options.Main
 
-	saveOptions bool
+	notSaveOptions bool
 
 	/// pre initialized components
 	Pool     executor.Pool
@@ -123,10 +123,9 @@ func main() {
 				Destination: &mainOptions.Pool.MaxLifeSeconds,
 			},
 			&cli.BoolFlag{
-				Name:        "save-options",
-				Aliases:     []string{"s"},
-				Usage:       fmt.Sprintf("save options to %s", Config),
-				Destination: &saveOptions,
+				Name:        "not-save",
+				Usage:       "do not save options",
+				Destination: &notSaveOptions,
 			},
 		},
 		Before: func(context *cli.Context) (err error) {
@@ -142,7 +141,7 @@ func main() {
 			return
 		},
 		After: func(*cli.Context) error {
-			if saveOptions {
+			if !notSaveOptions {
 				config, err := json.MarshalIndent(&options, "", "    ")
 				if err != nil {
 					return nil
