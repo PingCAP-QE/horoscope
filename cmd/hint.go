@@ -32,7 +32,8 @@ var hintCommand = &cli.Command{
 			Name:        "plan",
 			Aliases:     []string{"p"},
 			Usage:       "use plan by `ID`",
-			Destination: &planID,
+			Value:       options.Query.PlanID,
+			Destination: &options.Query.PlanID,
 		},
 	},
 	Action: func(context *cli.Context) error {
@@ -53,7 +54,7 @@ var hintCommand = &cli.Command{
 			return err
 		}
 
-		plan, err := horoscope.Plan(query, hints, planID)
+		plan, err := horoscope.Plan(query, hints, options.Query.PlanID)
 		if err != nil {
 			return err
 		}

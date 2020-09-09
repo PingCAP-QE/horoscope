@@ -22,7 +22,8 @@ import (
 )
 
 var (
-	tableName   string
+	infoOptions = &options.Info
+
 	infoCommand = &cli.Command{
 		Name:    "info",
 		Aliases: []string{"i"},
@@ -32,14 +33,14 @@ var (
 				Name:        "table",
 				Aliases:     []string{"t"},
 				Usage:       "show single `TABLE`",
-				Destination: &tableName,
+				Destination: &infoOptions.Table,
 			},
 		},
 		Action: func(context *cli.Context) error {
-			if tableName == "" {
+			if infoOptions.Table == "" {
 				fmt.Println(showTables())
 			} else {
-				repr, err := showTable(tableName)
+				repr, err := showTable(infoOptions.Table)
 				if err != nil {
 					return err
 				}

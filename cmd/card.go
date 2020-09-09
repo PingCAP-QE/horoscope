@@ -14,10 +14,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/aclements/go-moremath/stats"
 	"github.com/jedib0t/go-pretty/table"
@@ -28,9 +28,7 @@ import (
 
 var (
 	cardinalitor *horoscope.Cardinalitor
-	columns      string
-	typ          string
-	timeout      time.Duration
+	cardOptions  = options.Card
 	cardCommand  = &cli.Command{
 		Name:   "card",
 		Usage:  "test the cardinality estimations",
@@ -39,21 +37,21 @@ var (
 			&cli.StringFlag{
 				Name:        "columns",
 				Usage:       "collect cardinality estimation error, format of 't1:c1,t1:c2,t2:c1...'",
-				Destination: &columns,
-				Required:    true,
+				Value:       cardOptions.Columns,
+				Destination: &cardOptions.Columns,
 			},
 			&cli.StringFlag{
 				Name:        "type",
 				Aliases:     []string{"t"},
 				Usage:       "emq means exact match queries(A = x); rge means range(lb <= A < ub)",
-				Value:       "emq",
-				Destination: &typ,
+				Value:       cardOptions.Typ,
+				Destination: &cardOptions.Typ,
 			},
 			&cli.DurationFlag{
 				Name:        "timeout",
 				Usage:       "the timeout of testing",
-				Required:    false,
-				Destination: &timeout,
+				Value:       cardOptions.Timeout,
+				Destination: &cardOptions.Timeout,
 			},
 		},
 	}
@@ -61,7 +59,11 @@ var (
 
 func testCard(*cli.Context) error {
 	tableColumns := make(map[string][]string)
-	for _, pair := range strings.Split(columns, ",") {
+	columns := strings.Split(cardOptions.Columns, ",")
+	if len(columns) == 0 {
+		return errors.New("columns are empty")
+	}
+	for _, pair := range columns {
 		values := strings.Split(pair, ".")
 		table := values[0]
 		column := values[1]
@@ -70,7 +72,7 @@ func testCard(*cli.Context) error {
 		}
 		tableColumns[table] = append(tableColumns[table], column)
 	}
-	cardinalitor = horoscope.NewCardinalitor(Pool.Executor(), tableColumns, horoscope.CardinalityQueryType(typ), timeout)
+	cardinalitor = horoscope.NewCardinalitor(Pool.Executor(), tableColumns, horoscope.CardinalityQueryType(cardOptions.Typ), cardOptions.Timeout)
 	result, err := cardinalitor.Test()
 	if err != nil {
 		return err

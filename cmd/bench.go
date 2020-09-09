@@ -16,6 +16,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"path"
 	"strings"
 	"time"
 
@@ -27,12 +28,8 @@ import (
 )
 
 var (
-	needPrepare             bool
-	disableCollectCardError bool
-	noNeedVerify            bool
-	workloadDir             string
-	reportFmt               string
-	benchCommand            = &cli.Command{
+	benchOptions = &options.Bench
+	benchCommand = &cli.Command{
 		Name:   "bench",
 		Usage:  "Bench the optimizer",
 		Action: bench,
@@ -43,54 +40,54 @@ var (
 				Name:        "prepare",
 				Aliases:     []string{"p"},
 				Usage:       "prepare before benching",
-				Value:       false,
-				Destination: &needPrepare,
+				Value:       benchOptions.NeedPrepare,
+				Destination: &benchOptions.NeedPrepare,
 			},
-			&cli.StringFlag{
-				Name:        "workload",
-				Aliases:     []string{"w"},
-				Usage:       "specify the workload `DIR`",
-				Value:       "benchmark/dyn",
-				Destination: &workloadDir,
+			&cli.UintFlag{
+				Name:        "round",
+				Aliases:     []string{"r"},
+				Usage:       "execution `ROUND` of each query",
+				Value:       benchOptions.Round,
+				Destination: &benchOptions.Round,
 			},
 			&cli.StringFlag{
 				Name:        "output-format",
 				Aliases:     []string{"f"},
 				Usage:       "specify the format of report, may be `table` or `json`",
-				Value:       "table",
-				Destination: &reportFmt,
+				Value:       benchOptions.ReportFmt,
+				Destination: &benchOptions.ReportFmt,
 			},
 			&cli.BoolFlag{
 				Name:        "no-verify",
 				Usage:       "dont't perform results verification",
-				Value:       false,
-				Destination: &noNeedVerify,
+				Value:       benchOptions.NoVerify,
+				Destination: &benchOptions.NoVerify,
 			},
 			&cli.BoolFlag{
 				Name:        "no-cardinality-error",
 				Usage:       "collect cardinality estimation error",
-				Value:       false,
-				Destination: &disableCollectCardError,
+				Value:       benchOptions.DisableCollectCardError,
+				Destination: &benchOptions.DisableCollectCardError,
 			},
 		},
 	}
 )
 
 func bench(*cli.Context) error {
-	if needPrepare {
-		if err := prepare(workloadDir); err != nil {
+	if benchOptions.NeedPrepare {
+		if err := prepare(mainOptions.Workload); err != nil {
 			return err
 		}
 	}
-	newLoader, err := loader.LoadDir(workloadDir)
+	newLoader, err := loader.LoadDir(mainOptions.Workload)
 	if err != nil {
 		return err
 	}
 
-	horo := horoscope.NewHoroscope(Tx, newLoader, !disableCollectCardError)
-	var collection horoscope.BenchCollection
+	horo := horoscope.NewHoroscope(Tx, newLoader, !benchOptions.DisableCollectCardError)
+	collection := make(horoscope.BenchCollection, 0)
 	for {
-		benches, err := horo.Next(round, !noNeedVerify)
+		benches, err := horo.Next(benchOptions.Round, !benchOptions.NoVerify)
 		if err != nil {
 			if benches != nil {
 				log.WithFields(log.Fields{
@@ -144,7 +141,7 @@ func bench(*cli.Context) error {
 			}
 		}
 	}
-	return collection.Output(reportFmt)
+	return collection.Output(benchOptions.ReportFmt)
 }
 
 func prepare(workloadDir string) error {
@@ -152,7 +149,7 @@ func prepare(workloadDir string) error {
 		"workload dir": workloadDir,
 	}).Info("preparing...")
 
-	file := fmt.Sprintf("%s/prepare.sql", workloadDir)
+	file := path.Join(workloadDir, PrepareFile)
 	sqls, err := ioutil.ReadFile(file)
 	if err != nil {
 		return fmt.Errorf("read file %s error: %v", file, err)

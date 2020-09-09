@@ -26,8 +26,6 @@ import (
 )
 
 var (
-	planID int64 = 0
-
 	queryCommand = &cli.Command{
 		Name:    "query",
 		Aliases: []string{"q"},
@@ -37,7 +35,8 @@ var (
 				Name:        "plan",
 				Aliases:     []string{"p"},
 				Usage:       "use plan by `ID`",
-				Destination: &planID,
+				Value:       options.Query.PlanID,
+				Destination: &options.Query.PlanID,
 			},
 		},
 		Action: func(context *cli.Context) error {
@@ -58,13 +57,13 @@ var (
 				return err
 			}
 
-			plan, err := horoscope.Plan(query, hints, planID)
+			plan, err := horoscope.Plan(query, hints, options.Query.PlanID)
 			if err != nil {
 				return err
 			}
 
 			horo := horoscope.NewHoroscope(Pool.Executor(), loader.NoopLoader{}, true)
-			dur, rows, err := horo.RunSQLWithTime(round, plan, tp)
+			dur, rows, err := horo.RunSQLWithTime(1, plan, tp)
 			if err != nil {
 				return err
 			}

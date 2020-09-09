@@ -36,15 +36,24 @@ type (
 	}
 )
 
+const (
+	AddIndexesFile   = "add-indexes.sql"
+	CleanIndexesFile = "clean-indexes.sql"
+)
+
 var (
-	maxIndexes, compoundLevel int
-	reserveIndexes            bool
-	indexWorkload             = path.Join(dynWorkload, "indexes")
-	addIndexes                = path.Join(indexWorkload, "add-indexes.sql")
-	cleanIndexes              = path.Join(indexWorkload, "clean-indexes.sql")
-	indexCommand              = &cli.Command{
+	indexOptions                 = &options.Index
+	addIndexFile, cleanIndexFile string
+
+	indexCommand = &cli.Command{
 		Name:  "index",
 		Usage: "Add indexes for tables",
+		Before: func(*cli.Context) error {
+			indexesDir := path.Join(mainOptions.Workload, IndexesDir)
+			addIndexFile = path.Join(indexesDir, AddIndexesFile)
+			cleanIndexFile = path.Join(indexesDir, CleanIndexesFile)
+			return nil
+		},
 		Subcommands: cli.Commands{
 			&cli.Command{
 				Name:   "new",
@@ -55,15 +64,15 @@ var (
 						Name:        "max",
 						Aliases:     []string{"m"},
 						Usage:       "the max `numbers` of indexes in each level",
-						Value:       10,
-						Destination: &maxIndexes,
+						Value:       indexOptions.MaxIndexes,
+						Destination: &indexOptions.MaxIndexes,
 					},
 					&cli.IntFlag{
 						Name:        "level",
 						Aliases:     []string{"l"},
 						Usage:       "the compound `level` of indexes; 0 for no compound indexes",
-						Value:       1,
-						Destination: &compoundLevel,
+						Value:       indexOptions.CompoundLevel,
+						Destination: &indexOptions.CompoundLevel,
 					},
 				},
 			},
@@ -71,7 +80,7 @@ var (
 				Name:  "add",
 				Usage: "Apply scheme add-indexes",
 				Action: func(context *cli.Context) error {
-					return apply(addIndexes)
+					return apply(addIndexFile)
 				},
 			},
 			&cli.Command{
@@ -82,8 +91,8 @@ var (
 						Name:        "reserve",
 						Aliases:     []string{"r"},
 						Usage:       "reserve indexes",
-						Value:       false,
-						Destination: &reserveIndexes,
+						Value:       indexOptions.ReserveIndexes,
+						Destination: &indexOptions.ReserveIndexes,
 					},
 				},
 				Action: clean,
@@ -93,13 +102,13 @@ var (
 )
 
 func newScheme(*cli.Context) error {
-	if pathExist(addIndexes) || pathExist(cleanIndexes) {
+	if pathExist(addIndexFile) || pathExist(cleanIndexFile) {
 		return errors.New("A indexes scheme already exists")
 	}
 	add := ""
 	remove := ""
 	for _, table := range Database.BaseTables {
-		indexPairs := indexDML(table, compoundLevel, maxIndexes)
+		indexPairs := indexDML(table, indexOptions.CompoundLevel, indexOptions.MaxIndexes)
 		for _, pairs := range indexPairs {
 			for _, pair := range pairs {
 				add += pair.add
@@ -107,38 +116,38 @@ func newScheme(*cli.Context) error {
 			}
 		}
 	}
-	err := ioutil.WriteFile(addIndexes, []byte(add), 0644)
+	err := ioutil.WriteFile(addIndexFile, []byte(add), 0644)
 	if err != nil {
 		return err
 	}
 	log.WithFields(log.Fields{
-		"path": addIndexes,
+		"path": addIndexFile,
 	}).Info("Add scheme `add-indexes`, use `horo index add` to apply it")
 
-	err = ioutil.WriteFile(cleanIndexes, []byte(remove), 0644)
+	err = ioutil.WriteFile(cleanIndexFile, []byte(remove), 0644)
 	if err == nil {
 		log.WithFields(log.Fields{
-			"path": cleanIndexes,
+			"path": cleanIndexFile,
 		}).Info("Add scheme `clean-indexes`, use `horo index clean` to apply it")
 	}
 	return err
 }
 
 func clean(*cli.Context) error {
-	if pathExist(cleanIndexes) {
-		if !reserveIndexes {
-			err := apply(cleanIndexes)
+	if pathExist(cleanIndexFile) {
+		if !indexOptions.ReserveIndexes {
+			err := apply(cleanIndexFile)
 			if err != nil {
 				return err
 			}
 		}
-		err := os.Remove(cleanIndexes)
+		err := os.Remove(cleanIndexFile)
 		if err != nil {
 			return err
 		}
 	}
-	if pathExist(addIndexes) {
-		err := os.Remove(addIndexes)
+	if pathExist(addIndexFile) {
+		err := os.Remove(addIndexFile)
 		if err != nil {
 			return err
 		}

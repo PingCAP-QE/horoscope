@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	dataSource string
+	loadOptions = &options.Load
 
 	loadCommand = &cli.Command{
 		Name:  "load",
@@ -36,19 +36,19 @@ var (
 				Name:        "data-source",
 				Aliases:     []string{"d"},
 				Usage:       "specify the data source `DIR`",
-				Required:    true,
-				Destination: &dataSource,
+				Value:       loadOptions.DataSource,
+				Destination: &loadOptions.DataSource,
 			},
 		},
 		Action: func(context *cli.Context) error {
-			if !pathExist(dataSource) {
-				return fmt.Errorf("directory %s not exists", dataSource)
+			if !pathExist(loadOptions.DataSource) {
+				return fmt.Errorf("directory %s not exists", loadOptions.DataSource)
 			}
 
-			taskChan := make(chan struct{}, poolOptions.MaxOpenConns)
+			taskChan := make(chan struct{}, options.Main.Pool.MaxOpenConns)
 			var eg errgroup.Group
 
-			err := filepath.Walk(dataSource, func(path string, info os.FileInfo, err error) error {
+			err := filepath.Walk(loadOptions.DataSource, func(path string, info os.FileInfo, err error) error {
 				if err != nil {
 					return err
 				}

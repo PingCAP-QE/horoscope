@@ -15,30 +15,28 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"path"
-
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/pingcap/tidb/types/parser_driver"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"os"
 
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
 )
 
 const (
-	dynWorkload = "benchmark/dyn"
+	PrepareFile = "prepare.sql"
+	KeymapFile  = ".keymap"
+	QueriesDir  = "queries"
+	IndexesDir  = "indexes"
+	SchemaFile  = "schema.sql"
+	SliceDir    = "slices"
 )
 
 var (
 	/// Config
-	dsn           string
-	round         uint
-	jsonFormatter bool
-	logFile       string
-	verbose       string
-	poolOptions   executor.PoolOptions
+	mainOptions = &options.Main
 
 	/// pre initialized components
 	Pool     executor.Pool
@@ -46,8 +44,6 @@ var (
 
 	/// needs initialized by subcommand
 	Tx executor.Transaction
-
-	keymapPath = path.Join(dynWorkload, ".keymap")
 )
 
 func main() {
@@ -60,59 +56,52 @@ func main() {
 				Aliases:     []string{"d"},
 				Value:       "root:@tcp(localhost:4000)/test?charset=utf8",
 				Usage:       "set `DSN` of target db",
-				Destination: &dsn,
-			},
-			&cli.UintFlag{
-				Name:        "round",
-				Aliases:     []string{"r"},
-				Value:       1,
-				Usage:       "execution `ROUND` of each query",
-				Destination: &round,
+				Destination: &mainOptions.Dsn,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Aliases:     []string{"j"},
 				Value:       false,
 				Usage:       "format log with json formatter",
-				Destination: &jsonFormatter,
+				Destination: &mainOptions.JsonFormatter,
 			},
 			&cli.StringFlag{
 				Name:        "file",
 				Aliases:     []string{"f"},
 				Usage:       "set `FILE` to store log",
-				Destination: &logFile,
+				Destination: &mainOptions.LogFile,
 			},
 			&cli.StringFlag{
 				Name:        "verbose",
 				Aliases:     []string{"v"},
 				Value:       "info",
 				Usage:       "set `LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
-				Destination: &verbose,
+				Destination: &mainOptions.Verbose,
 			},
 			&cli.UintFlag{
 				Name:        "max-open-conns",
 				Value:       100,
 				Usage:       "the max `numbers` of connections",
-				Destination: &poolOptions.MaxOpenConns,
+				Destination: &mainOptions.Pool.MaxOpenConns,
 			},
 			&cli.UintFlag{
 				Name:        "max-idle-conns",
 				Value:       20,
 				Usage:       "the max `numbers` of idle connections",
-				Destination: &poolOptions.MaxIdleConns,
+				Destination: &mainOptions.Pool.MaxIdleConns,
 			},
 			&cli.UintFlag{
 				Name:        "max-lifetime",
 				Value:       10,
 				Usage:       "the max `seconds` of connections lifetime",
-				Destination: &poolOptions.MaxLifeSeconds,
+				Destination: &mainOptions.Pool.MaxLifeSeconds,
 			},
 		},
 		Before: func(context *cli.Context) (err error) {
 			if err = setupLogger(); err != nil {
 				return
 			}
-			Pool, err = executor.NewPool(dsn, &poolOptions)
+			Pool, err = executor.NewPool(mainOptions.Dsn, &mainOptions.Pool)
 			if err != nil {
 				return
 			}
@@ -141,18 +130,18 @@ func main() {
 }
 
 func setupLogger() error {
-	if jsonFormatter {
+	if mainOptions.JsonFormatter {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	level, err := log.ParseLevel(verbose)
+	level, err := log.ParseLevel(mainOptions.Verbose)
 	if err != nil {
 		return err
 	}
 	log.SetLevel(level)
 
-	if logFile != "" {
-		file, err := os.Open(logFile)
+	if mainOptions.LogFile != "" {
+		file, err := os.Open(mainOptions.LogFile)
 		if err != nil {
 			return err
 		}

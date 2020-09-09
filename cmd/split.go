@@ -15,7 +15,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path"
 
 	log "github.com/sirupsen/logrus"
@@ -26,15 +25,9 @@ import (
 )
 
 var (
-	group       string
-	slices      uint
-	batchSize   uint
-	useBitArray bool
+	splitOptions = &options.Split
 
 	groupKey *keymap.Key
-
-	schemaPath = path.Join(dynWorkload, "schema.sql")
-	slicesDir  = path.Join(dynWorkload, "slices")
 
 	splitCommand = &cli.Command{
 		Name:    "split",
@@ -45,31 +38,33 @@ var (
 				Name:        "group",
 				Aliases:     []string{"g"},
 				Usage:       "group split, group by `<table>.<column>`",
-				Destination: &group,
+				Value:       splitOptions.Group,
+				Destination: &splitOptions.Group,
 			},
 			&cli.UintFlag{
 				Name:        "slices",
 				Aliases:     []string{"s"},
 				Usage:       "the `numbers` of slices to split, only used when flag --group is not set",
-				Value:       100,
-				Destination: &slices,
+				Value:       splitOptions.Slices,
+				Destination: &splitOptions.Slices,
 			},
 			&cli.UintFlag{
 				Name:        "batch",
 				Aliases:     []string{"b"},
 				Usage:       "the `size` of batch insert",
-				Value:       100,
-				Destination: &batchSize,
+				Value:       splitOptions.BatchSize,
+				Destination: &splitOptions.BatchSize,
 			},
 			&cli.BoolFlag{
 				Name:        "bitarray",
 				Usage:       "filter duplicated rows with a bitarray",
-				Destination: &useBitArray,
+				Value:       splitOptions.UseBitArray,
+				Destination: &splitOptions.UseBitArray,
 			},
 		},
 		Before: func(ctx *cli.Context) (err error) {
-			if group != "" {
-				groupKey, err = keymap.ParseKey(group)
+			if splitOptions.Group != "" {
+				groupKey, err = keymap.ParseKey(splitOptions.Group)
 			}
 			if err != nil {
 				return
@@ -78,33 +73,27 @@ var (
 		},
 		After: rollback,
 		Action: func(context *cli.Context) (err error) {
-			keymaps, err := keymap.ParseFile(keymapPath)
+			keymaps, err := keymap.ParseFile(path.Join(mainOptions.Workload, KeymapFile))
 			if err != nil {
 				return err
 			}
 
-			splitor, err := split_data.Split(Tx, Database, keymaps, groupKey, int(slices), useBitArray)
+			splitor, err := split_data.Split(Tx, Database, keymaps, groupKey, int(splitOptions.Slices), splitOptions.UseBitArray)
 
 			if err != nil {
 				return err
 			}
 
-			err = splitor.DumpSchema(schemaPath)
+			err = splitor.DumpSchema(path.Join(mainOptions.Workload, SchemaFile))
 			if err != nil {
 				return err
 			}
 
 			id := 0
-			if !pathExist(slicesDir) {
-				err = os.Mkdir(slicesDir, 0700)
-				if err != nil {
-					return err
-				}
-			}
 			for {
 				log.Infof("dumping slice (%d/%d)", id+1, splitor.Slices())
 
-				id, err = splitor.Next(path.Join(slicesDir, fmt.Sprintf("%d", id)), batchSize)
+				id, err = splitor.Next(path.Join(path.Join(mainOptions.Workload, SliceDir), fmt.Sprintf("%d", id)), splitOptions.BatchSize)
 				if err != nil {
 					return err
 				}

@@ -55,18 +55,18 @@ type (
 	}
 
 	Options struct {
-		MaxTables            int
-		MinDurationThreshold time.Duration
-		Limit                int
-		KeyOnly              bool
+		MaxTables            int           `json:"max_tables"`
+		MinDurationThreshold time.Duration `json:"min_duration_threshold"`
+		Limit                int           `json:"limit"`
+		KeyOnly              bool          `json:"key_only"`
 
 		// control order by
-		StableOrderBy bool
-		MaxByItems    int
+		StableOrderBy bool `json:"stable_order_by"`
+		MaxByItems    int  `json:"max_by_items"`
 
-		EnableKeyMap bool
+		EnableKeyMap bool `json:"enable_key_map"`
 
-		AggregateWeight float64
+		AggregateWeight float64 `json:"aggregate_weight"`
 	}
 )
 

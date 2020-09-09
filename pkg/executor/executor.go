@@ -57,7 +57,9 @@ type (
 	}
 
 	PoolOptions struct {
-		MaxOpenConns, MaxIdleConns, MaxLifeSeconds uint
+		MaxOpenConns   uint `json:"max_open_conns"`
+		MaxIdleConns   uint `json:"max_idle_conns"`
+		MaxLifeSeconds uint `json:"max_life_seconds"`
 	}
 
 	PoolImpl struct {
