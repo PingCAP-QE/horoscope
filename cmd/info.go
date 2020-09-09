@@ -27,9 +27,8 @@ var (
 
 func infoCommand() *cli.Command {
 	return &cli.Command{
-		Name:    "info",
-		Aliases: []string{"i"},
-		Usage:   "Show database information",
+		Name:  "info",
+		Usage: "Show database information",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "table",

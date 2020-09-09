@@ -153,6 +153,7 @@ func main() {
 			return nil
 		},
 		Commands: cli.Commands{
+			initCommand(),
 			benchCommand(),
 			genCommand(),
 			queryCommand(),
