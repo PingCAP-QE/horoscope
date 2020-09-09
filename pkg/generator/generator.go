@@ -61,8 +61,8 @@ type (
 		KeyOnly              bool          `json:"key_only"`
 
 		// control order by
-		StableOrderBy bool `json:"stable_order_by"`
-		MaxByItems    int  `json:"max_by_items"`
+		UnstableOrderBy bool `json:"unstable_order_by"`
+		MaxByItems      int  `json:"max_by_items"`
 
 		EnableKeyMap bool `json:"enable_key_map"`
 
@@ -447,7 +447,7 @@ func (g *Generator) RdGroupBy(maxByItems int, tableColumns [][]*database.Column)
 
 func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][]*database.Column) []*ast.ByItem {
 	var cols []*ast.ByItem
-	if options.StableOrderBy {
+	if !options.UnstableOrderBy {
 		allHavePK := true
 		var allColumnFields []*ast.ByItem
 		var pkColumnFields []*ast.ByItem

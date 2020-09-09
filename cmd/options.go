@@ -23,8 +23,9 @@ import (
 var (
 	options = Options{
 		Main: MainOptions{
-			Dsn:     "root:@tcp(localhost:4000)/test?charset=utf8",
-			Verbose: "info",
+			Workload: ".",
+			Dsn:      "root:@tcp(localhost:4000)/test?charset=utf8",
+			Verbose:  "info",
 			Pool: executor.PoolOptions{
 				MaxOpenConns:   100,
 				MaxIdleConns:   20,
@@ -44,7 +45,6 @@ var (
 			AndOpWeight: 3,
 			Generator: generator.Options{
 				MaxTables:            1,
-				StableOrderBy:        true,
 				MaxByItems:           3,
 				MinDurationThreshold: 10 * time.Millisecond,
 				Limit:                100,

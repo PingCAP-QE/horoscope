@@ -5,6 +5,6 @@ bin
 .idea
 .vscode
 
-# dynamic benchmark
-benchmark/dyn/*
-!**/**/.gitkeep
+# dynamic workload
+workload/
+horo.json

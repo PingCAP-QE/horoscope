@@ -72,11 +72,10 @@ var (
 				Destination: &genOptions.MaxTables,
 			},
 			&cli.BoolFlag{
-				Name:        "stable-order",
-				Aliases:     []string{"s"},
-				Usage:       "generate all stable order queries",
-				Value:       genOptions.StableOrderBy,
-				Destination: &genOptions.StableOrderBy,
+				Name:        "unstable-order",
+				Usage:       "enable unstable order queries",
+				Value:       genOptions.UnstableOrderBy,
+				Destination: &genOptions.UnstableOrderBy,
 			},
 			&cli.IntFlag{
 				Name:        "max-by-items",

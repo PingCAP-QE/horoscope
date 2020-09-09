@@ -15,11 +15,12 @@ package main
 
 import (
 	"fmt"
+	"os"
+
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/pingcap/tidb/types/parser_driver"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
-	"os"
 
 	"github.com/chaos-mesh/horoscope/pkg/database"
 	"github.com/chaos-mesh/horoscope/pkg/executor"
@@ -54,46 +55,54 @@ func main() {
 			&cli.StringFlag{
 				Name:        "dsn",
 				Aliases:     []string{"d"},
-				Value:       "root:@tcp(localhost:4000)/test?charset=utf8",
 				Usage:       "set `DSN` of target db",
+				Value:       mainOptions.Dsn,
 				Destination: &mainOptions.Dsn,
+			},
+			&cli.StringFlag{
+				Name:        "workload",
+				Aliases:     []string{"w"},
+				Usage:       "workload `DIR` of horo",
+				Value:       mainOptions.Workload,
+				Destination: &mainOptions.Workload,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Aliases:     []string{"j"},
-				Value:       false,
 				Usage:       "format log with json formatter",
+				Value:       mainOptions.JsonFormatter,
 				Destination: &mainOptions.JsonFormatter,
 			},
 			&cli.StringFlag{
 				Name:        "file",
 				Aliases:     []string{"f"},
 				Usage:       "set `FILE` to store log",
+				Value:       mainOptions.LogFile,
 				Destination: &mainOptions.LogFile,
 			},
 			&cli.StringFlag{
 				Name:        "verbose",
 				Aliases:     []string{"v"},
-				Value:       "info",
 				Usage:       "set `LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
+				Value:       mainOptions.Verbose,
 				Destination: &mainOptions.Verbose,
 			},
 			&cli.UintFlag{
 				Name:        "max-open-conns",
-				Value:       100,
 				Usage:       "the max `numbers` of connections",
+				Value:       mainOptions.Pool.MaxOpenConns,
 				Destination: &mainOptions.Pool.MaxOpenConns,
 			},
 			&cli.UintFlag{
 				Name:        "max-idle-conns",
-				Value:       20,
 				Usage:       "the max `numbers` of idle connections",
+				Value:       mainOptions.Pool.MaxIdleConns,
 				Destination: &mainOptions.Pool.MaxIdleConns,
 			},
 			&cli.UintFlag{
 				Name:        "max-lifetime",
-				Value:       10,
 				Usage:       "the max `seconds` of connections lifetime",
+				Value:       mainOptions.Pool.MaxLifeSeconds,
 				Destination: &mainOptions.Pool.MaxLifeSeconds,
 			},
 		},

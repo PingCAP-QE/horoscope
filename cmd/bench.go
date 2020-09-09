@@ -79,7 +79,7 @@ func bench(*cli.Context) error {
 			return err
 		}
 	}
-	newLoader, err := loader.LoadDir(mainOptions.Workload)
+	newLoader, err := loader.LoadDir(path.Join(mainOptions.Workload, QueriesDir))
 	if err != nil {
 		return err
 	}
