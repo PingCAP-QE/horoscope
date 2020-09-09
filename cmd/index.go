@@ -44,8 +44,10 @@ const (
 var (
 	indexOptions                 = &options.Index
 	addIndexFile, cleanIndexFile string
+)
 
-	indexCommand = &cli.Command{
+func indexCommand() *cli.Command {
+	return &cli.Command{
 		Name:  "index",
 		Usage: "Add indexes for tables",
 		Before: func(*cli.Context) error {
@@ -99,7 +101,7 @@ var (
 			},
 		},
 	}
-)
+}
 
 func newScheme(*cli.Context) error {
 	if pathExist(addIndexFile) || pathExist(cleanIndexFile) {

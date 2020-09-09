@@ -29,7 +29,10 @@ import (
 
 var (
 	benchOptions = &options.Bench
-	benchCommand = &cli.Command{
+)
+
+func benchCommand() *cli.Command {
+	return &cli.Command{
 		Name:   "bench",
 		Usage:  "Bench the optimizer",
 		Action: bench,
@@ -71,7 +74,7 @@ var (
 			},
 		},
 	}
-)
+}
 
 func bench(*cli.Context) error {
 	if benchOptions.NeedPrepare {

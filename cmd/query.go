@@ -25,8 +25,8 @@ import (
 	"github.com/chaos-mesh/horoscope/pkg/loader"
 )
 
-var (
-	queryCommand = &cli.Command{
+func queryCommand() *cli.Command {
+	return &cli.Command{
 		Name:    "query",
 		Aliases: []string{"q"},
 		Usage:   "Execute a query",
@@ -73,4 +73,4 @@ var (
 			return nil
 		},
 	}
-)
+}

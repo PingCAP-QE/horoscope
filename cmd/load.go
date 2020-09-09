@@ -27,8 +27,10 @@ import (
 
 var (
 	loadOptions = &options.Load
+)
 
-	loadCommand = &cli.Command{
+func loadCommand() *cli.Command {
+	return &cli.Command{
 		Name:  "load",
 		Usage: "Load data in a directory",
 		Flags: []cli.Flag{
@@ -101,4 +103,4 @@ var (
 			return eg.Wait()
 		},
 	}
-)
+}

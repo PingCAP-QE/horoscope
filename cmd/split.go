@@ -26,10 +26,11 @@ import (
 
 var (
 	splitOptions = &options.Split
+	groupKey     *keymap.Key
+)
 
-	groupKey *keymap.Key
-
-	splitCommand = &cli.Command{
+func splitCommand() *cli.Command {
+	return &cli.Command{
 		Name:    "split",
 		Aliases: []string{"s"},
 		Usage:   "Split data into several slices",
@@ -103,4 +104,4 @@ var (
 			}
 		},
 	}
-)
+}

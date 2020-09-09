@@ -31,8 +31,10 @@ import (
 var (
 	generateOptions = &options.Generate
 	genOptions      = &generateOptions.Generator
+)
 
-	genCommand = &cli.Command{
+func genCommand() *cli.Command {
+	return &cli.Command{
 		Name:    "gen",
 		Aliases: []string{"g"},
 		Usage:   "Generate a dynamic bench scheme",
@@ -178,7 +180,7 @@ var (
 			return
 		},
 	}
-)
+}
 
 func genPrepare(plans []string) string {
 	prepare := ""

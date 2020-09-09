@@ -23,8 +23,10 @@ import (
 
 var (
 	infoOptions = &options.Info
+)
 
-	infoCommand = &cli.Command{
+func infoCommand() *cli.Command {
+	return &cli.Command{
 		Name:    "info",
 		Aliases: []string{"i"},
 		Usage:   "Show database information",
@@ -33,6 +35,7 @@ var (
 				Name:        "table",
 				Aliases:     []string{"t"},
 				Usage:       "show single `TABLE`",
+				Value:       infoOptions.Table,
 				Destination: &infoOptions.Table,
 			},
 		},
@@ -49,7 +52,7 @@ var (
 			return nil
 		},
 	}
-)
+}
 
 func showTables() string {
 	t := table.NewWriter()

@@ -153,16 +153,16 @@ func main() {
 			return nil
 		},
 		Commands: cli.Commands{
-			benchCommand,
-			genCommand,
-			queryCommand,
-			hintCommand,
-			explainCommand,
-			infoCommand,
-			indexCommand,
-			cardCommand,
-			splitCommand,
-			loadCommand,
+			benchCommand(),
+			genCommand(),
+			queryCommand(),
+			hintCommand(),
+			explainCommand(),
+			infoCommand(),
+			indexCommand(),
+			cardCommand(),
+			splitCommand(),
+			loadCommand(),
 		},
 	}
 
