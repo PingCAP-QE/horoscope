@@ -12,7 +12,7 @@ horoscope is an optimizer inspector for DBMS.
     curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/chaos-mesh/horoscope/master/install.sh | sh
     ```
 
-    Then open a new terminal to try `horo -h`.
+    Then open a new terminal and try `horo -h`.
 
     ```sh
     NAME:
