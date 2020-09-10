@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 
 	"github.com/pingcap/parser"
@@ -30,10 +29,10 @@ const (
 )
 
 type StandardLoader struct {
-	workloadDir string
-	parser      *parser.Parser
-	index       int
-	queries     []queryInfo
+	queriesDir string
+	parser     *parser.Parser
+	index      int
+	queries    []queryInfo
 }
 
 type queryInfo struct {
@@ -62,8 +61,7 @@ func (g *StandardLoader) Next() (string, ast.StmtNode) {
 }
 
 func (g *StandardLoader) load() error {
-	dir := path.Join(g.workloadDir, QueryDir)
-	err := filepath.Walk(dir,
+	err := filepath.Walk(g.queriesDir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -81,13 +79,13 @@ func (g *StandardLoader) load() error {
 			return nil
 		})
 	if err != nil {
-		return fmt.Errorf("walk dir %s error: %v", dir, err)
+		return fmt.Errorf("walk dir %s error: %v", g.queriesDir, err)
 	}
 	return nil
 }
 
-func LoadDir(workloadDir string) (QueryLoader, error) {
-	newLoader := &StandardLoader{workloadDir: workloadDir, parser: parser.New()}
+func LoadDir(queriesDir string) (QueryLoader, error) {
+	newLoader := &StandardLoader{queriesDir: queriesDir, parser: parser.New()}
 	err := newLoader.load()
 	return newLoader, err
 }

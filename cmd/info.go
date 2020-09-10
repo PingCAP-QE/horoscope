@@ -22,24 +22,27 @@ import (
 )
 
 var (
-	tableName   string
-	infoCommand = &cli.Command{
-		Name:    "info",
-		Aliases: []string{"i"},
-		Usage:   "Show database information",
+	infoOptions = &options.Info
+)
+
+func infoCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "info",
+		Usage: "Show database information",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "table",
 				Aliases:     []string{"t"},
 				Usage:       "show single `TABLE`",
-				Destination: &tableName,
+				Value:       infoOptions.Table,
+				Destination: &infoOptions.Table,
 			},
 		},
 		Action: func(context *cli.Context) error {
-			if tableName == "" {
+			if infoOptions.Table == "" {
 				fmt.Println(showTables())
 			} else {
-				repr, err := showTable(tableName)
+				repr, err := showTable(infoOptions.Table)
 				if err != nil {
 					return err
 				}
@@ -48,7 +51,7 @@ var (
 			return nil
 		},
 	}
-)
+}
 
 func showTables() string {
 	t := table.NewWriter()

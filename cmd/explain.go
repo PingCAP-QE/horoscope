@@ -24,51 +24,54 @@ import (
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 )
 
-var explainCommand = &cli.Command{
-	Name:    "explain",
-	Aliases: []string{"e"},
-	Usage:   "Explain analyze a query",
-	Flags: []cli.Flag{
-		&cli.Int64Flag{
-			Name:        "plan",
-			Aliases:     []string{"p"},
-			Usage:       "use plan by `ID`",
-			Destination: &planID,
+func explainCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "explain",
+		Aliases: []string{"e"},
+		Usage:   "Explain analyze a query",
+		Flags: []cli.Flag{
+			&cli.Int64Flag{
+				Name:        "plan",
+				Aliases:     []string{"p"},
+				Usage:       "use plan by `ID`",
+				Value:       options.Query.PlanID,
+				Destination: &options.Query.PlanID,
+			},
 		},
-	},
-	Action: func(context *cli.Context) error {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("tidb> ")
-		sql, err := reader.ReadString('\n')
-		if err != nil {
-			return err
-		}
-
-		query, err := Parse(sql)
-		if err != nil {
-			return err
-		}
-
-		_, hints, err := horoscope.AnalyzeQuery(query, sql)
-		if err != nil {
-			return err
-		}
-
-		plan, err := horoscope.Plan(query, hints, planID)
-		if err != nil {
-			return err
-		}
-
-		rows, warnings, err := Pool.Executor().ExplainAnalyze(plan)
-		if err != nil {
-			return err
-		}
-		for _, warning := range warnings {
-			if warning != nil {
-				log.Warn(warning.Error())
+		Action: func(context *cli.Context) error {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Print("tidb> ")
+			sql, err := reader.ReadString('\n')
+			if err != nil {
+				return err
 			}
-		}
-		fmt.Println(rows.String())
-		return nil
-	},
+
+			query, err := Parse(sql)
+			if err != nil {
+				return err
+			}
+
+			_, hints, err := horoscope.AnalyzeQuery(query, sql)
+			if err != nil {
+				return err
+			}
+
+			plan, err := horoscope.Plan(query, hints, options.Query.PlanID)
+			if err != nil {
+				return err
+			}
+
+			rows, warnings, err := Pool.Executor().ExplainAnalyze(plan)
+			if err != nil {
+				return err
+			}
+			for _, warning := range warnings {
+				if warning != nil {
+					log.Warn(warning.Error())
+				}
+			}
+			fmt.Println(rows.String())
+			return nil
+		},
+	}
 }

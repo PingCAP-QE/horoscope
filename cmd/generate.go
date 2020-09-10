@@ -29,14 +29,12 @@ import (
 )
 
 var (
-	queryNums   int
-	andOpWeight int
-	genOptions  generator.Options
-	prepareFile = path.Join(dynWorkload, "prepare.sql")
-	queriesDir  = path.Join(dynWorkload, "queries")
-	genMode     string
+	generateOptions = &options.Generate
+	genOptions      = &generateOptions.Generator
+)
 
-	genCommand = &cli.Command{
+func genCommand() *cli.Command {
+	return &cli.Command{
 		Name:    "gen",
 		Aliases: []string{"g"},
 		Usage:   "Generate a dynamic bench scheme",
@@ -45,99 +43,100 @@ var (
 				Name:        "mode",
 				Aliases:     []string{"m"},
 				Usage:       "mode of generator, `< bench | op-compose >`",
-				Value:       "bench",
-				Destination: &genMode,
+				Value:       generateOptions.Mode,
+				Destination: &generateOptions.Mode,
 			},
 			&cli.IntFlag{
 				Name:        "queries",
 				Aliases:     []string{"q"},
 				Usage:       "the number of queries",
-				Value:       20,
-				Destination: &queryNums,
+				Value:       generateOptions.Queries,
+				Destination: &generateOptions.Queries,
 			},
 			&cli.BoolFlag{
 				Name:        "keymap",
 				Aliases:     []string{"k"},
 				Usage:       "enable keymap",
+				Value:       genOptions.EnableKeyMap,
 				Destination: &genOptions.EnableKeyMap,
 			},
 			&cli.BoolFlag{
 				Name:        "key-only",
 				Usage:       "only use key columns",
+				Value:       genOptions.KeyOnly,
 				Destination: &genOptions.KeyOnly,
 			},
 			&cli.IntFlag{
 				Name:        "table-count",
 				Aliases:     []string{"c"},
 				Usage:       "the max number of tables",
-				Value:       1,
+				Value:       genOptions.MaxTables,
 				Destination: &genOptions.MaxTables,
 			},
 			&cli.BoolFlag{
-				Name:        "stable-order",
-				Aliases:     []string{"s"},
-				Usage:       "generate all stable order queries",
-				Value:       true,
-				Destination: &genOptions.StableOrderBy,
+				Name:        "unstable-order",
+				Usage:       "enable unstable order queries",
+				Value:       genOptions.UnstableOrderBy,
+				Destination: &genOptions.UnstableOrderBy,
 			},
 			&cli.IntFlag{
 				Name:        "max-by-items",
 				Usage:       "the max `number` of by-items, used by order-by and group-by",
-				Value:       3,
+				Value:       genOptions.MaxByItems,
 				Destination: &genOptions.MaxByItems,
 			},
 			&cli.DurationFlag{
 				Name:        "threshold",
 				Aliases:     []string{"d"},
 				Usage:       "minimum query execution `duration` threshold",
-				Value:       10 * time.Millisecond,
+				Value:       genOptions.MinDurationThreshold,
 				Destination: &genOptions.MinDurationThreshold,
 			},
 			&cli.IntFlag{
 				Name:        "limit",
 				Aliases:     []string{"l"},
 				Usage:       "`limit` of each query",
-				Value:       100,
+				Value:       genOptions.Limit,
 				Destination: &genOptions.Limit,
 			},
 			&cli.Float64Flag{
 				Name:        "aggr-weight",
 				Aliases:     []string{"aw"},
 				Usage:       "`weight` of aggregate select statements; between 0.0 and 1.0",
-				Value:       0.5,
+				Value:       genOptions.AggregateWeight,
 				Destination: &genOptions.AggregateWeight,
 			},
 			&cli.IntFlag{
 				Name:        "weight",
 				Aliases:     []string{"w"},
 				Usage:       "weight of 'AND' operator in random",
-				Value:       3,
-				Destination: &andOpWeight,
+				Value:       generateOptions.AndOpWeight,
+				Destination: &generateOptions.AndOpWeight,
 			},
 		},
 		Before: func(ctx *cli.Context) error {
-			generator.SetAndOpWeight(andOpWeight)
+			generator.SetAndOpWeight(generateOptions.AndOpWeight)
 			return initTx(ctx)
 		},
 		Action: func(context *cli.Context) (err error) {
 			var keymaps []keymap.KeyMap
 			if genOptions.EnableKeyMap {
-				keymaps, err = keymap.ParseFile(keymapPath)
+				keymaps, err = keymap.ParseFile(path.Join(mainOptions.Workload, KeymapFile))
 				if err != nil {
 					return
 				}
 			}
 			gen := generator.NewGenerator(Database, Pool.Executor(), keymaps)
-			plans := make([]string, 0, queryNums)
-			for len(plans) < queryNums {
+			plans := make([]string, 0, generateOptions.Queries)
+			for len(plans) < generateOptions.Queries {
 				var query string
-				switch genMode {
+				switch generateOptions.Mode {
 				case "bench":
-					query, err = gen.BenchStmt(genOptions)
+					query, err = gen.BenchStmt(*genOptions)
 				case "op-compose":
-					query, err = gen.ComposeStmt(genOptions)
+					query, err = gen.ComposeStmt(*genOptions)
 				default:
-					err = fmt.Errorf("invalid mode: '%s'", genMode)
+					err = fmt.Errorf("invalid mode: '%s'", generateOptions.Mode)
 				}
 				if err != nil {
 					return err
@@ -153,10 +152,13 @@ var (
 				}
 				plans = append(plans, query)
 			}
-			err = ioutil.WriteFile(prepareFile, []byte(genPrepare(plans)), 0644)
+
+			err = ioutil.WriteFile(path.Join(mainOptions.Workload, PrepareFile), []byte(genPrepare(plans)), 0644)
 			if err != nil {
 				return
 			}
+
+			queriesDir := path.Join(mainOptions.Workload, QueriesDir)
 			err = os.RemoveAll(queriesDir)
 			if err != nil {
 				return
@@ -178,7 +180,7 @@ var (
 			return
 		},
 	}
-)
+}
 
 func genPrepare(plans []string) string {
 	prepare := ""

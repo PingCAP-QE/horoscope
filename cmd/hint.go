@@ -23,46 +23,49 @@ import (
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 )
 
-var hintCommand = &cli.Command{
-	Name:    "hint",
-	Aliases: []string{"H"},
-	Usage:   "Explain hint of a query",
-	Flags: []cli.Flag{
-		&cli.Int64Flag{
-			Name:        "plan",
-			Aliases:     []string{"p"},
-			Usage:       "use plan by `ID`",
-			Destination: &planID,
+func hintCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "hint",
+		Aliases: []string{"H"},
+		Usage:   "Explain hint of a query",
+		Flags: []cli.Flag{
+			&cli.Int64Flag{
+				Name:        "plan",
+				Aliases:     []string{"p"},
+				Usage:       "use plan by `ID`",
+				Value:       options.Query.PlanID,
+				Destination: &options.Query.PlanID,
+			},
 		},
-	},
-	Action: func(context *cli.Context) error {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("tidb> ")
-		sql, err := reader.ReadString('\n')
-		if err != nil {
-			return err
-		}
+		Action: func(context *cli.Context) error {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Print("tidb> ")
+			sql, err := reader.ReadString('\n')
+			if err != nil {
+				return err
+			}
 
-		query, err := Parse(sql)
-		if err != nil {
-			return err
-		}
+			query, err := Parse(sql)
+			if err != nil {
+				return err
+			}
 
-		_, hints, err := horoscope.AnalyzeQuery(query, sql)
-		if err != nil {
-			return err
-		}
+			_, hints, err := horoscope.AnalyzeQuery(query, sql)
+			if err != nil {
+				return err
+			}
 
-		plan, err := horoscope.Plan(query, hints, planID)
-		if err != nil {
-			return err
-		}
+			plan, err := horoscope.Plan(query, hints, options.Query.PlanID)
+			if err != nil {
+				return err
+			}
 
-		explainHints, err := Pool.Executor().GetHints(plan)
-		if err != nil {
-			return err
-		}
-		fmt.Println(explainHints.String())
-		return nil
-	},
+			explainHints, err := Pool.Executor().GetHints(plan)
+			if err != nil {
+				return err
+			}
+			fmt.Println(explainHints.String())
+			return nil
+		},
+	}
 }

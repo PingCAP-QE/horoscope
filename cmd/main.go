@@ -14,9 +14,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
-	"path"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/pingcap/tidb/types/parser_driver"
@@ -28,17 +29,20 @@ import (
 )
 
 const (
-	dynWorkload = "benchmark/dyn"
+	PrepareFile = "prepare.sql"
+	KeymapFile  = ".keymap"
+	QueriesDir  = "queries"
+	IndexesDir  = "indexes"
+	SchemaFile  = "schema.sql"
+	SliceDir    = "slices"
+	Config      = "horo.json"
 )
 
 var (
 	/// Config
-	dsn           string
-	round         uint
-	jsonFormatter bool
-	logFile       string
-	verbose       string
-	poolOptions   executor.PoolOptions
+	mainOptions = &options.Main
+
+	notSaveOptions bool
 
 	/// pre initialized components
 	Pool     executor.Pool
@@ -46,11 +50,21 @@ var (
 
 	/// needs initialized by subcommand
 	Tx executor.Transaction
-
-	keymapPath = path.Join(dynWorkload, ".keymap")
 )
 
 func main() {
+	if pathExist(Config) {
+		config, err := ioutil.ReadFile(Config)
+		if err != nil {
+			log.Fatalf("fail to read config file `%s`: err: %s", Config, err.Error())
+		}
+
+		err = json.Unmarshal(config, &options)
+		if err != nil {
+			log.Fatalf("wrong config file `%s`, invalid format: %s", Config, err.Error())
+		}
+	}
+
 	app := &cli.App{
 		Name:  "horoscope",
 		Usage: "An optimizer inspector for DBMS",
@@ -58,61 +72,67 @@ func main() {
 			&cli.StringFlag{
 				Name:        "dsn",
 				Aliases:     []string{"d"},
-				Value:       "root:@tcp(localhost:4000)/test?charset=utf8",
 				Usage:       "set `DSN` of target db",
-				Destination: &dsn,
+				Value:       mainOptions.Dsn,
+				Destination: &mainOptions.Dsn,
 			},
-			&cli.UintFlag{
-				Name:        "round",
-				Aliases:     []string{"r"},
-				Value:       1,
-				Usage:       "execution `ROUND` of each query",
-				Destination: &round,
+			&cli.StringFlag{
+				Name:        "workload",
+				Aliases:     []string{"w"},
+				Usage:       "workload `DIR` of horo",
+				Value:       mainOptions.Workload,
+				Destination: &mainOptions.Workload,
 			},
 			&cli.BoolFlag{
 				Name:        "json",
 				Aliases:     []string{"j"},
-				Value:       false,
 				Usage:       "format log with json formatter",
-				Destination: &jsonFormatter,
+				Value:       mainOptions.JsonFormatter,
+				Destination: &mainOptions.JsonFormatter,
 			},
 			&cli.StringFlag{
 				Name:        "file",
 				Aliases:     []string{"f"},
 				Usage:       "set `FILE` to store log",
-				Destination: &logFile,
+				Value:       mainOptions.LogFile,
+				Destination: &mainOptions.LogFile,
 			},
 			&cli.StringFlag{
 				Name:        "verbose",
 				Aliases:     []string{"v"},
-				Value:       "info",
 				Usage:       "set `LEVEL` of log: trace|debug|info|warn|error|fatal|panic",
-				Destination: &verbose,
+				Value:       mainOptions.Verbose,
+				Destination: &mainOptions.Verbose,
 			},
 			&cli.UintFlag{
 				Name:        "max-open-conns",
-				Value:       100,
 				Usage:       "the max `numbers` of connections",
-				Destination: &poolOptions.MaxOpenConns,
+				Value:       mainOptions.Pool.MaxOpenConns,
+				Destination: &mainOptions.Pool.MaxOpenConns,
 			},
 			&cli.UintFlag{
 				Name:        "max-idle-conns",
-				Value:       20,
 				Usage:       "the max `numbers` of idle connections",
-				Destination: &poolOptions.MaxIdleConns,
+				Value:       mainOptions.Pool.MaxIdleConns,
+				Destination: &mainOptions.Pool.MaxIdleConns,
 			},
 			&cli.UintFlag{
 				Name:        "max-lifetime",
-				Value:       10,
 				Usage:       "the max `seconds` of connections lifetime",
-				Destination: &poolOptions.MaxLifeSeconds,
+				Value:       mainOptions.Pool.MaxLifeSeconds,
+				Destination: &mainOptions.Pool.MaxLifeSeconds,
+			},
+			&cli.BoolFlag{
+				Name:        "not-save",
+				Usage:       "do not save options",
+				Destination: &notSaveOptions,
 			},
 		},
 		Before: func(context *cli.Context) (err error) {
 			if err = setupLogger(); err != nil {
 				return
 			}
-			Pool, err = executor.NewPool(dsn, &poolOptions)
+			Pool, err = executor.NewPool(mainOptions.Dsn, &mainOptions.Pool)
 			if err != nil {
 				return
 			}
@@ -120,17 +140,29 @@ func main() {
 			Database, err = InitDatabase(Pool.Executor())
 			return
 		},
+		After: func(*cli.Context) error {
+			if !notSaveOptions {
+				config, err := json.MarshalIndent(&options, "", "    ")
+				if err != nil {
+					return nil
+				}
+
+				return ioutil.WriteFile(Config, config, 0600)
+			}
+			return nil
+		},
 		Commands: cli.Commands{
-			benchCommand,
-			genCommand,
-			queryCommand,
-			hintCommand,
-			explainCommand,
-			infoCommand,
-			indexCommand,
-			cardCommand,
-			splitCommand,
-			loadCommand,
+			initCommand(),
+			benchCommand(),
+			genCommand(),
+			queryCommand(),
+			hintCommand(),
+			explainCommand(),
+			infoCommand(),
+			indexCommand(),
+			cardCommand(),
+			splitCommand(),
+			loadCommand(),
 		},
 	}
 
@@ -141,18 +173,18 @@ func main() {
 }
 
 func setupLogger() error {
-	if jsonFormatter {
+	if mainOptions.JsonFormatter {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
 
-	level, err := log.ParseLevel(verbose)
+	level, err := log.ParseLevel(mainOptions.Verbose)
 	if err != nil {
 		return err
 	}
 	log.SetLevel(level)
 
-	if logFile != "" {
-		file, err := os.Open(logFile)
+	if mainOptions.LogFile != "" {
+		file, err := os.Open(mainOptions.LogFile)
 		if err != nil {
 			return err
 		}

@@ -77,18 +77,18 @@ type (
 	}
 
 	Options struct {
-		MaxTables            int
-		MinDurationThreshold time.Duration
-		Limit                int
-		KeyOnly              bool
+		MaxTables            int           `json:"max_tables"`
+		MinDurationThreshold time.Duration `json:"min_duration_threshold"`
+		Limit                int           `json:"limit"`
+		KeyOnly              bool          `json:"key_only"`
 
 		// control order by
-		StableOrderBy bool
-		MaxByItems    int
+		UnstableOrderBy bool `json:"unstable_order_by"`
+		MaxByItems      int  `json:"max_by_items"`
 
-		EnableKeyMap bool
+		EnableKeyMap bool `json:"enable_key_map"`
 
-		AggregateWeight float64
+		AggregateWeight float64 `json:"aggregate_weight"`
 	}
 )
 
@@ -488,7 +488,7 @@ func (g *Generator) RdGroupBy(maxByItems int, tableColumns [][]*database.Column)
 
 func (g *Generator) RdOrderBy(options Options, tables []string, tableColumns [][]*database.Column) []*ast.ByItem {
 	var cols []*ast.ByItem
-	if options.StableOrderBy {
+	if !options.UnstableOrderBy {
 		allHavePK := true
 		var allColumnFields []*ast.ByItem
 		var pkColumnFields []*ast.ByItem
