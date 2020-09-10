@@ -6,15 +6,15 @@ horoscope is an optimizer inspector for DBMS.
 
 1. Install
 
-    - *Install using script(recommend)*
+    - **Install using script(recommend)**
 
-    ```bash
+    ```sh
     curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/chaos-mesh/horoscope/master/install.sh | sh
     ```
 
     Then open a new terminal to try `horo -h`.
 
-    ```log
+    ```sh
     NAME:
     horoscope - An optimizer inspector for DBMS
 
@@ -48,9 +48,9 @@ horoscope is an optimizer inspector for DBMS.
     --help, -h                 show help (default: false)
     ```
 
-    - *Build from source*
+    - **Build from source**
     
-    ```bash
+    ```sh
     git clone https://github.com/chaos-mesh/horoscope.git
     make
     ```
@@ -60,14 +60,14 @@ horoscope is an optimizer inspector for DBMS.
 2. Initialize Workload
 
     Enter a clean directory and execute:
-    ```bash
+    ```sh
     horo init
     ```
 
     You may fail because there is no tidb or mysql server listening on `localhost:4000`.
     A custom data source name or workload directory is also supported:
 
-    ```bash
+    ```sh
     horo -d "root@tcp(172.20.1.1)/test" -w workload init
     ```
 
@@ -139,13 +139,13 @@ horoscope is an optimizer inspector for DBMS.
 
 3. Generate Queries
 
-    ```bash
+    ```sh
     horo gen -c 3
     ```
 
 4. Start Benching
 
-    ```bash
+    ```sh
     horo bench -p
     ```
 
