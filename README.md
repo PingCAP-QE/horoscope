@@ -4,74 +4,155 @@ horoscope is an optimizer inspector for DBMS.
 
 ## Get Started
 
-1. Run TiDB
+1. Install
 
-    Recommend [TiUP](https://tiup.io).
+    - *Install using script(recommend)*
 
-2. Initialize TPCH Database
-
-    Recommend [go-tpc](https://github.com/pingcap/go-tpc).
     ```bash
-    git clone https://github.com/pingcap/go-tpc.git
-    cd go-tpc
-    make
-    ./bin/go-tpc tpch --sf=1 prepare
+    curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/chaos-mesh/horoscope/master/install.sh | sh
     ```
 
-3. Build Horoscope
+    Then open a new terminal to try `horo -h`.
 
+    ```log
+    NAME:
+    horoscope - An optimizer inspector for DBMS
+
+    USAGE:
+    horo [global options] command [command options] [arguments...]
+
+    COMMANDS:
+    init, i     initialize workload
+    bench       Bench the optimizer
+    gen, g      Generate a dynamic bench scheme
+    query, q    Execute a query
+    hint, H     Explain hint of a query
+    explain, e  Explain analyze a query
+    info        Show database information
+    index       Add indexes for tables
+    card        test the cardinality estimations
+    split, s    Split data into several slices
+    load        Load data in a directory
+    help, h     Shows a list of commands or help for one command
+
+    GLOBAL OPTIONS:
+    --dsn DSN, -d DSN          set DSN of target db (default: "root@tcp(localhost:4000)/test")
+    --workload DIR, -w DIR     workload DIR of horo (default: "workload")
+    --json, -j                 format log with json formatter (default: false)
+    --file FILE, -f FILE       set FILE to store log
+    --verbose LEVEL, -v LEVEL  set LEVEL of log: trace|debug|info|warn|error|fatal|panic (default: "info")
+    --max-open-conns numbers   the max numbers of connections (default: 100)
+    --max-idle-conns numbers   the max numbers of idle connections (default: 20)
+    --max-lifetime seconds     the max seconds of connections lifetime (default: 10)
+    --not-save                 do not save options (default: false)
+    --help, -h                 show help (default: false)
+    ```
+
+    - *Build from source*
+    
     ```bash
     git clone https://github.com/chaos-mesh/horoscope.git
-    cd horoscope
     make
+    ```
+
+    Then try `bin/horo -h`.
+
+2. Initialize Workload
+
+    Enter a clean directory and execute:
+    ```bash
+    horo init
+    ```
+
+    You may fail because there is no tidb or mysql server listening on `localhost:4000`.
+    A custom data source name or workload directory is also supported:
+
+    ```bash
+    horo -d "root@tcp(172.20.1.1)/test" -w workload init
+    ```
+
+    All options will be saved in `horo.json` of current directory:
+
+    ```json
+    {
+        "main": {
+            "workload": "workload",
+            "dsn": "root@tcp(172.20.1.1:4000)/test",
+            "json_formatter": false,
+            "log_file": "",
+            "verbose": "trace",
+            "pool": {
+                "max_open_conns": 100,
+                "max_idle_conns": 20,
+                "max_life_seconds": 10
+            }
+        },
+        "bench": {
+            "round": 1,
+            "need_prepare": false,
+            "disable_collect_card_error": false,
+            "no_verify": false,
+            "report_fmt": "table"
+        },
+        "card": {
+            "columns": "",
+            "type": "emq",
+            "timeout": 0
+        },
+        "query": {
+            "plan_id": 0
+        },
+        "generate": {
+            "queries": 20,
+            "and_op_weight": 3,
+            "mode": "op-compose",
+            "generator": {
+                "max_tables": 3,
+                "min_duration_threshold": 10000000,
+                "limit": 100,
+                "key_only": false,
+                "unstable_order_by": false,
+                "max_by_items": 3,
+                "enable_key_map": false,
+                "aggregate_weight": 0.5
+            }
+        },
+        "index": {
+            "max_indexes": 10,
+            "compound_level": 1,
+            "reserve_indexes": false
+        },
+        "info": {
+            "table": ""
+        },
+        "load": {
+            "data_source": ""
+        },
+        "split": {
+            "group": "",
+            "slices": 100,
+            "batch_size": 100,
+            "use_bit_array": false
+        }
+    }
+    ```
+
+3. Generate Queries
+
+    ```bash
+    horo gen -c 3
     ```
 
 4. Start Benching
 
     ```bash
-    bin/horo bench -p -w benchmark/tpch
+    horo bench -p
     ```
-
-## Usage
-
-```
-NAME:
-   horoscope - An optimizer inspector for DBMS
-
-USAGE:
-   horo [global options] command [command options] [arguments...]
-
-COMMANDS:
-   init, i     initialize workload
-   bench       Bench the optimizer
-   gen, g      Generate a dynamic bench scheme
-   query, q    Execute a query
-   hint, H     Explain hint of a query
-   explain, e  Explain analyze a query
-   info        Show database information
-   index       Add indexes for tables
-   card        test the cardinality estimations
-   split, s    Split data into several slices
-   load        Load data in a directory
-   help, h     Shows a list of commands or help for one command
-
-GLOBAL OPTIONS:
-   --dsn DSN, -d DSN          set DSN of target db (default: "root@tcp(localhost:4000)/test")
-   --workload DIR, -w DIR     workload DIR of horo (default: "workload")
-   --json, -j                 format log with json formatter (default: false)
-   --file FILE, -f FILE       set FILE to store log
-   --verbose LEVEL, -v LEVEL  set LEVEL of log: trace|debug|info|warn|error|fatal|panic (default: "info")
-   --max-open-conns numbers   the max numbers of connections (default: 100)
-   --max-idle-conns numbers   the max numbers of idle connections (default: 20)
-   --max-lifetime seconds     the max seconds of connections lifetime (default: 10)
-   --not-save                 do not save options (default: false)
-   --help, -h                 show help (default: false)
-```
 
 ### Bench effectiveness
 
 ```sh
-bin/horo -r 4 bench -p -c -w benchmark/tpch
+horo -w benchmark/tpch bench -p -c -r 4 
 ```
 
 ### Bench cardinality estimation
@@ -79,7 +160,7 @@ bin/horo -r 4 bench -p -c -w benchmark/tpch
 For example, measures the EMQ(exact match queries) row cnt error on `customer.C_NAME` for total 100 seconds.
 
 ```sh
-bin/horo card -columns 'customer.C_NAME' -type emq -timeout 100s
+horo card -columns 'customer.C_NAME' -type emq -timeout 100s
 ```
 
 ## Summary report
