@@ -35,26 +35,36 @@ horoscope is an optimizer inspector for DBMS.
 ## Usage
 
 ```
+NAME:
+   horoscope - An optimizer inspector for DBMS
+
 USAGE:
    horo [global options] command [command options] [arguments...]
 
 COMMANDS:
+   init, i     initialize workload
    bench       Bench the optimizer
    gen, g      Generate a dynamic bench scheme
    query, q    Execute a query
    hint, H     Explain hint of a query
    explain, e  Explain analyze a query
-   info, i     Show database information
+   info        Show database information
    index       Add indexes for tables
    card        test the cardinality estimations
+   split, s    Split data into several slices
+   load        Load data in a directory
    help, h     Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --dsn DSN, -d DSN          set DSN of target db (default: "root:@tcp(localhost:4000)/test?charset=utf8")
-   --round ROUND, -r ROUND    execution ROUND of each query (default: 1)
+   --dsn DSN, -d DSN          set DSN of target db (default: "root@tcp(localhost:4000)/test")
+   --workload DIR, -w DIR     workload DIR of horo (default: "workload")
    --json, -j                 format log with json formatter (default: false)
    --file FILE, -f FILE       set FILE to store log
    --verbose LEVEL, -v LEVEL  set LEVEL of log: trace|debug|info|warn|error|fatal|panic (default: "info")
+   --max-open-conns numbers   the max numbers of connections (default: 100)
+   --max-idle-conns numbers   the max numbers of idle connections (default: 20)
+   --max-lifetime seconds     the max seconds of connections lifetime (default: 10)
+   --not-save                 do not save options (default: false)
    --help, -h                 show help (default: false)
 ```
 
