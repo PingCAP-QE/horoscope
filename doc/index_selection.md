@@ -4,7 +4,7 @@ Horoscope fuzzes the index selection by adding new random indexes and generating
 
 ## 1. Random add indexes
 
-First, horoscope connects to the target database, reads schema information, and decides which indexes(in current implementation, horo selects column combinations randomly) to add, then saves the DDL statements in`indexes` directory of workload.
+First, horoscope connects to the target database, reads schema information, and decides which indexes(in current implementation, horo selects column combinations randomly) to add, then saves the DDL statements in `indexes` directory of workload.
 
 Use `horo index new` to generate DDLs:
 
