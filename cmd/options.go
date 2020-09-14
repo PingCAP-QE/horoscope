@@ -23,7 +23,7 @@ import (
 var (
 	options = Options{
 		Main: MainOptions{
-			Workload: ".",
+			Workload: "workload",
 			Dsn:      "root:@tcp(localhost:4000)/test?charset=utf8",
 			Verbose:  "info",
 			Pool: executor.PoolOptions{
