@@ -28,6 +28,11 @@ import (
 	"github.com/chaos-mesh/horoscope/pkg/keymap"
 )
 
+const (
+	GenBenchMode     = "bench"
+	GenOpComposeMode = "op-compose"
+)
+
 var (
 	generateOptions = &options.Generate
 	genOptions      = &generateOptions.Generator
@@ -42,7 +47,7 @@ func genCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:        "mode",
 				Aliases:     []string{"m"},
-				Usage:       "mode of generator, `< bench | op-compose >`",
+				Usage:       fmt.Sprintf("mode of generator, `%s | %s`", GenBenchMode, GenOpComposeMode),
 				Value:       generateOptions.Mode,
 				Destination: &generateOptions.Mode,
 			},
@@ -131,9 +136,9 @@ func genCommand() *cli.Command {
 			for len(plans) < generateOptions.Queries {
 				var query string
 				switch generateOptions.Mode {
-				case "bench":
+				case GenBenchMode:
 					query, err = gen.BenchStmt(*genOptions)
-				case "op-compose":
+				case GenOpComposeMode:
 					query, err = gen.ComposeStmt(*genOptions)
 				default:
 					err = fmt.Errorf("invalid mode: '%s'", generateOptions.Mode)
@@ -153,9 +158,11 @@ func genCommand() *cli.Command {
 				plans = append(plans, query)
 			}
 
-			err = ioutil.WriteFile(path.Join(mainOptions.Workload, PrepareFile), []byte(genPrepare(plans)), 0644)
-			if err != nil {
-				return
+			if generateOptions.Mode == GenBenchMode {
+				err = ioutil.WriteFile(path.Join(mainOptions.Workload, PrepareFile), []byte(genPrepare(plans)), 0644)
+				if err != nil {
+					return
+				}
 			}
 
 			queriesDir := path.Join(mainOptions.Workload, QueriesDir)

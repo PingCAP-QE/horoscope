@@ -35,15 +35,13 @@ var (
 		Bench: BenchOptions{
 			ReportFmt: "table",
 			Round:     1,
-		},
-		Test: TestOptions{
-			MaxPlans: 1000,
+			MaxPlans:  1000,
 		},
 		Card: CardOptions{
 			Typ: "emq",
 		},
 		Generate: GenerateOptions{
-			Mode:        "bench",
+			Mode:        GenBenchMode,
 			Queries:     20,
 			AndOpWeight: 3,
 			Generator: generator.Options{
@@ -69,7 +67,6 @@ type (
 	Options struct {
 		Main     MainOptions     `json:"main"`
 		Bench    BenchOptions    `json:"bench"`
-		Test     TestOptions     `json:"test"`
 		Card     CardOptions     `json:"card"`
 		Query    QueryOptions    `json:"query"`
 		Generate GenerateOptions `json:"generate"`
@@ -94,11 +91,7 @@ type (
 		DisableCollectCardError bool   `json:"disable_collect_card_error"`
 		NoVerify                bool   `json:"no_verify"`
 		ReportFmt               string `json:"report_fmt"`
-	}
-
-	TestOptions struct {
-		MaxPlans uint `json:"max_plans"`
-		NeedSort bool `json:"need_sort"`
+		MaxPlans                uint   `json:"max_plans"`
 	}
 
 	CardOptions struct {

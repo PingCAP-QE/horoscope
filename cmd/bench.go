@@ -23,6 +23,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
+	"github.com/chaos-mesh/horoscope/pkg/executor"
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
 	"github.com/chaos-mesh/horoscope/pkg/loader"
 )
@@ -53,6 +54,12 @@ func benchCommand() *cli.Command {
 				Value:       benchOptions.Round,
 				Destination: &benchOptions.Round,
 			},
+			&cli.UintFlag{
+				Name:        "max-plans",
+				Usage:       "the max `numbers` of plans",
+				Value:       benchOptions.MaxPlans,
+				Destination: &benchOptions.MaxPlans,
+			},
 			&cli.StringFlag{
 				Name:        "output-format",
 				Aliases:     []string{"f"},
@@ -78,7 +85,7 @@ func benchCommand() *cli.Command {
 
 func bench(*cli.Context) error {
 	if benchOptions.NeedPrepare {
-		if err := prepare(mainOptions.Workload); err != nil {
+		if err := prepare(mainOptions.Workload, Tx); err != nil {
 			return err
 		}
 	}
@@ -147,7 +154,7 @@ func bench(*cli.Context) error {
 	return collection.Output(benchOptions.ReportFmt)
 }
 
-func prepare(workloadDir string) error {
+func prepare(workloadDir string, exec executor.Executor) error {
 	log.WithFields(log.Fields{
 		"workload dir": workloadDir,
 	}).Info("preparing...")
@@ -157,7 +164,7 @@ func prepare(workloadDir string) error {
 	if err != nil {
 		return fmt.Errorf("read file %s error: %v", file, err)
 	}
-	_, err = Pool.Executor().Exec(string(sqls))
+	_, err = exec.Exec(string(sqls))
 	if err != nil {
 		return fmt.Errorf("exec prepare statements error: %v", err)
 	}

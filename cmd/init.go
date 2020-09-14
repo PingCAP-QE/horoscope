@@ -44,6 +44,10 @@ func initCommand() *cli.Command {
 				return err
 			}
 
+			if err := tryCreate(path.Join(workload, PrepareFile)); err != nil {
+				return err
+			}
+
 			if err := tryCreate(path.Join(workload, KeymapFile)); err != nil {
 				return err
 			}
