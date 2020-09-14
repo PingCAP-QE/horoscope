@@ -51,13 +51,13 @@ func NewHoroscope(exec executor.Executor, loader loader.QueryLoader, enableColle
 	return &Horoscope{exec: exec, loader: loader, enableCollectCardError: enableCollectCardError}
 }
 
-func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) {
+func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Benches, err error) {
 	qID, query := h.loader.Next()
 	if query == nil {
 		return
 	}
 
-	benches, err = h.collectPlans(qID, query)
+	benches, err = h.collectPlans(qID, query, maxPlans)
 	if err != nil {
 		return
 	}
@@ -188,7 +188,7 @@ func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable [
 	return
 }
 
-func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *Benches, err error) {
+func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, maxPlans uint64) (benches *Benches, err error) {
 	sql, err := utils.BufferOut(query)
 	if err != nil {
 		return
@@ -223,8 +223,8 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 		return
 	}
 
-	var id int64 = 1
-	for ; ; id++ {
+	var id uint64 = 1
+	for ; id <= maxPlans; id++ {
 		var plan string
 		var warnings []error
 
@@ -261,6 +261,7 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 				SQL:         plan,
 			})
 	}
+	return
 }
 
 func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
@@ -295,7 +296,7 @@ func verifyList(one, other []executor.Comparable) error {
 	return nil
 }
 
-func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId int64) (string, error) {
+func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId uint64) (string, error) {
 	if planId > 0 {
 		if planHint := findPlanHint(*hints); planHint != nil {
 			planHint.HintData = planId

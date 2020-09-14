@@ -34,7 +34,7 @@ type Benches struct {
 }
 
 type Bench struct {
-	Plan        int64
+	Plan        uint64
 	SQL         string
 	Hints       executor.Hints
 	Explanation executor.Rows

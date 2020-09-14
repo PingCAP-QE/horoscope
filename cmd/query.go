@@ -31,7 +31,7 @@ func queryCommand() *cli.Command {
 		Aliases: []string{"q"},
 		Usage:   "Execute a query",
 		Flags: []cli.Flag{
-			&cli.Int64Flag{
+			&cli.Uint64Flag{
 				Name:        "plan",
 				Aliases:     []string{"p"},
 				Usage:       "use plan by `ID`",

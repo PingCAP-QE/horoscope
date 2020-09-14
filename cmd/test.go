@@ -54,7 +54,7 @@ func testCommand() *cli.Command {
 				Value:       testOptions.Round,
 				Destination: &testOptions.Round,
 			},
-			&cli.UintFlag{
+			&cli.Uint64Flag{
 				Name:        "max-plans",
 				Usage:       "the max `numbers` of plans",
 				Value:       testOptions.MaxPlans,
@@ -105,18 +105,18 @@ func test(*cli.Context) error {
 	horo := horoscope.NewHoroscope(Tx, newLoader, !testOptions.DisableCollectCardError)
 	collection := make(horoscope.BenchCollection, 0)
 	for {
-		benches, err := horo.Next(testOptions.Round, !testOptions.NoVerify)
+		benches, err := horo.Next(testOptions.Round, testOptions.MaxPlans, !testOptions.NoVerify)
 		if err != nil {
 			if benches != nil {
 				log.WithFields(log.Fields{
 					"query id": benches.QueryID,
 					"query":    benches.DefaultPlan.SQL,
 					"err":      err.Error(),
-				}).Warn("Occurs an error when benching the query")
+				}).Warn("Occurs an error when testing the query")
 			} else {
 				log.WithFields(log.Fields{
 					"err": err.Error(),
-				}).Warn("Occurs an error when benching one query")
+				}).Warn("Occurs an error when testing one query")
 			}
 			if strings.Contains(err.Error(), "connection refused") ||
 				strings.Contains(err.Error(), "invalid connection") {

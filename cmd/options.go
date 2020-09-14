@@ -92,7 +92,7 @@ type (
 		NoBench                 bool   `json:"no_bench"`
 		NoVerify                bool   `json:"no_verify"`
 		ReportFmt               string `json:"report_fmt"`
-		MaxPlans                uint   `json:"max_plans"`
+		MaxPlans                uint64 `json:"max_plans"`
 	}
 
 	CardOptions struct {
@@ -102,7 +102,7 @@ type (
 	}
 
 	QueryOptions struct {
-		PlanID int64 `json:"plan_id"`
+		PlanID uint64 `json:"plan_id"`
 	}
 
 	GenerateOptions struct {

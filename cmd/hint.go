@@ -29,7 +29,7 @@ func hintCommand() *cli.Command {
 		Aliases: []string{"H"},
 		Usage:   "Explain hint of a query",
 		Flags: []cli.Flag{
-			&cli.Int64Flag{
+			&cli.Uint64Flag{
 				Name:        "plan",
 				Aliases:     []string{"p"},
 				Usage:       "use plan by `ID`",

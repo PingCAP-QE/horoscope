@@ -30,7 +30,7 @@ func explainCommand() *cli.Command {
 		Aliases: []string{"e"},
 		Usage:   "Explain analyze a query",
 		Flags: []cli.Flag{
-			&cli.Int64Flag{
+			&cli.Uint64Flag{
 				Name:        "plan",
 				Aliases:     []string{"p"},
 				Usage:       "use plan by `ID`",
