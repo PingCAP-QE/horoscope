@@ -153,7 +153,7 @@ func main() {
 		},
 		Commands: cli.Commands{
 			initCommand(),
-			benchCommand(),
+			testCommand(),
 			genCommand(),
 			queryCommand(),
 			hintCommand(),

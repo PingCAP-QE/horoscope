@@ -29,62 +29,70 @@ import (
 )
 
 var (
-	benchOptions = &options.Bench
+	testOptions = &options.Test
 )
 
-func benchCommand() *cli.Command {
+func testCommand() *cli.Command {
 	return &cli.Command{
-		Name:   "bench",
-		Usage:  "Bench the optimizer",
-		Action: bench,
+		Name:   "test",
+		Usage:  "test the optimizer",
+		Action: test,
 		Before: initTx,
 		After:  rollback,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "prepare",
 				Aliases:     []string{"p"},
-				Usage:       "prepare before benching",
-				Value:       benchOptions.NeedPrepare,
-				Destination: &benchOptions.NeedPrepare,
+				Usage:       "prepare before test",
+				Value:       testOptions.NeedPrepare,
+				Destination: &testOptions.NeedPrepare,
 			},
 			&cli.UintFlag{
 				Name:        "round",
 				Aliases:     []string{"r"},
 				Usage:       "execution `ROUND` of each query",
-				Value:       benchOptions.Round,
-				Destination: &benchOptions.Round,
+				Value:       testOptions.Round,
+				Destination: &testOptions.Round,
 			},
 			&cli.UintFlag{
 				Name:        "max-plans",
 				Usage:       "the max `numbers` of plans",
-				Value:       benchOptions.MaxPlans,
-				Destination: &benchOptions.MaxPlans,
+				Value:       testOptions.MaxPlans,
+				Destination: &testOptions.MaxPlans,
 			},
 			&cli.StringFlag{
 				Name:        "output-format",
 				Aliases:     []string{"f"},
 				Usage:       "specify the format of report, may be `table` or `json`",
-				Value:       benchOptions.ReportFmt,
-				Destination: &benchOptions.ReportFmt,
+				Value:       testOptions.ReportFmt,
+				Destination: &testOptions.ReportFmt,
 			},
 			&cli.BoolFlag{
 				Name:        "no-verify",
-				Usage:       "dont't perform results verification",
-				Value:       benchOptions.NoVerify,
-				Destination: &benchOptions.NoVerify,
+				Aliases:     []string{"nv"},
+				Usage:       "don't perform results verification",
+				Value:       testOptions.NoVerify,
+				Destination: &testOptions.NoVerify,
+			},
+			&cli.BoolFlag{
+				Name:        "no-bench",
+				Aliases:     []string{"nb"},
+				Usage:       "don't output benchmark report",
+				Value:       testOptions.NoBench,
+				Destination: &testOptions.NoBench,
 			},
 			&cli.BoolFlag{
 				Name:        "no-cardinality-error",
 				Usage:       "collect cardinality estimation error",
-				Value:       benchOptions.DisableCollectCardError,
-				Destination: &benchOptions.DisableCollectCardError,
+				Value:       testOptions.DisableCollectCardError,
+				Destination: &testOptions.DisableCollectCardError,
 			},
 		},
 	}
 }
 
-func bench(*cli.Context) error {
-	if benchOptions.NeedPrepare {
+func test(*cli.Context) error {
+	if testOptions.NeedPrepare {
 		if err := prepare(mainOptions.Workload, Tx); err != nil {
 			return err
 		}
@@ -94,10 +102,10 @@ func bench(*cli.Context) error {
 		return err
 	}
 
-	horo := horoscope.NewHoroscope(Tx, newLoader, !benchOptions.DisableCollectCardError)
+	horo := horoscope.NewHoroscope(Tx, newLoader, !testOptions.DisableCollectCardError)
 	collection := make(horoscope.BenchCollection, 0)
 	for {
-		benches, err := horo.Next(benchOptions.Round, !benchOptions.NoVerify)
+		benches, err := horo.Next(testOptions.Round, !testOptions.NoVerify)
 		if err != nil {
 			if benches != nil {
 				log.WithFields(log.Fields{
@@ -151,7 +159,7 @@ func bench(*cli.Context) error {
 			}
 		}
 	}
-	return collection.Output(benchOptions.ReportFmt)
+	return collection.Output(testOptions.ReportFmt)
 }
 
 func prepare(workloadDir string, exec executor.Executor) error {
