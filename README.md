@@ -1,4 +1,6 @@
 # horoscope
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fchaos-mesh%2Fhoroscope.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fchaos-mesh%2Fhoroscope?ref=badge_shield)
+
 
 horoscope is an optimizer inspector for DBMS.
 
@@ -195,3 +197,7 @@ For the JOB benchmark, [join-order-benchmark](https://github.com/gregrahn/join-o
 ## Index selection fuzz
 
 Refer to [index selection fuzz](doc/index_selection.md)
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fchaos-mesh%2Fhoroscope.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fchaos-mesh%2Fhoroscope?ref=badge_large)
