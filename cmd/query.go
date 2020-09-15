@@ -57,7 +57,7 @@ func queryCommand() *cli.Command {
 				return err
 			}
 
-			plan, err := horoscope.Plan(query, hints, options.Query.PlanID)
+			plan, err := horoscope.Plan(query, hints, int64(options.Query.PlanID))
 			if err != nil {
 				return err
 			}

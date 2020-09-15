@@ -228,7 +228,7 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, maxPlans ui
 		var plan string
 		var warnings []error
 
-		plan, err = Plan(query, optHints, id)
+		plan, err = Plan(query, optHints, int64(id))
 		if err != nil {
 			return
 		}
@@ -296,7 +296,7 @@ func verifyList(one, other []executor.Comparable) error {
 	return nil
 }
 
-func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId uint64) (string, error) {
+func Plan(node ast.StmtNode, hints *[]*ast.TableOptimizerHint, planId int64) (string, error) {
 	if planId > 0 {
 		if planHint := findPlanHint(*hints); planHint != nil {
 			planHint.HintData = planId
