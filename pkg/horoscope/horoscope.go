@@ -351,7 +351,7 @@ func IsSubOptimal(defPlan *Bench, plan *Bench) bool {
 		Mean:    currentPlanCost.Mean,
 		Max:     currentPlanCost.Max,
 	})
-	if testErr != nil || testErr == nil && pVal < alpha {
+	if testErr != nil || pVal < alpha {
 		return true
 	}
 	return false
