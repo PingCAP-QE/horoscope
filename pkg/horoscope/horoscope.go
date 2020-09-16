@@ -41,14 +41,15 @@ var (
 type (
 	Horoscope struct {
 		exec                   executor.Executor
+		differentialExecs      []executor.Executor
 		loader                 loader.QueryLoader
 		enableCollectCardError bool
 	}
 	QueryType uint8
 )
 
-func NewHoroscope(exec executor.Executor, loader loader.QueryLoader, enableCollectCardError bool) *Horoscope {
-	return &Horoscope{exec: exec, loader: loader, enableCollectCardError: enableCollectCardError}
+func NewHoroscope(exec executor.Executor, differentialExecs []executor.Executor, loader loader.QueryLoader, enableCollectCardError bool) *Horoscope {
+	return &Horoscope{exec: exec, differentialExecs: differentialExecs, loader: loader, enableCollectCardError: enableCollectCardError}
 }
 
 func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Benches, err error) {

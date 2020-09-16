@@ -62,7 +62,7 @@ func queryCommand() *cli.Command {
 				return err
 			}
 
-			horo := horoscope.NewHoroscope(Pool.Executor(), loader.NoopLoader{}, true)
+			horo := horoscope.NewHoroscope(Pool.Executor(), nil, loader.NoopLoader{}, true)
 			dur, rows, err := horo.RunSQLWithTime(1, plan, tp)
 			if err != nil {
 				return err

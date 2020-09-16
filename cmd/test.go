@@ -121,7 +121,7 @@ func test(*cli.Context) error {
 		return err
 	}
 
-	horo := horoscope.NewHoroscope(Tx, newLoader, !testOptions.DisableCollectCardError)
+	horo := horoscope.NewHoroscope(Tx, covariant(differentialTxes), newLoader, !testOptions.DisableCollectCardError)
 	collection := make(horoscope.BenchCollection, 0)
 	for {
 		benches, err := horo.Next(testOptions.Round, testOptions.MaxPlans, !testOptions.NoVerify)
@@ -160,25 +160,32 @@ func test(*cli.Context) error {
 			"explanation": benches.DefaultPlan.Explanation.String(),
 		}).Debug("Default explanation")
 		collection = append(collection, benches)
-		for _, plan := range benches.Plans {
-			if horoscope.IsSubOptimal(&benches.DefaultPlan, plan) && plan.Plan != benches.DefaultPlan.Plan {
-				log.WithFields(log.Fields{
-					"query id":     benches.QueryID,
-					"better plan":  plan.Plan,
-					"better hints": plan.Hints,
-				}).Errorf(
-					"may choose a suboptimal plan(%0.2fms < %0.2fms)",
-					plan.Cost.Mean,
-					benches.DefaultPlan.Cost.Mean,
-				)
-				log.WithFields(log.Fields{
-					"query id":           benches.QueryID,
-					"better explanation": plan.Explanation.String(),
-				}).Debug("Better explanation")
+		if !testOptions.NoBench {
+			for _, plan := range benches.Plans {
+				if horoscope.IsSubOptimal(&benches.DefaultPlan, plan) && plan.Plan != benches.DefaultPlan.Plan {
+					log.WithFields(log.Fields{
+						"query id":     benches.QueryID,
+						"better plan":  plan.Plan,
+						"better hints": plan.Hints,
+					}).Errorf(
+						"may choose a suboptimal plan(%0.2fms < %0.2fms)",
+						plan.Cost.Mean,
+						benches.DefaultPlan.Cost.Mean,
+					)
+					log.WithFields(log.Fields{
+						"query id":           benches.QueryID,
+						"better explanation": plan.Explanation.String(),
+					}).Debug("Better explanation")
+				}
 			}
 		}
 	}
-	return collection.Output(testOptions.ReportFmt)
+
+	if !testOptions.NoBench {
+		return collection.Output(testOptions.ReportFmt)
+	}
+
+	return nil
 }
 
 func prepare(workloadDir string, exec executor.Executor) error {
@@ -215,4 +222,12 @@ func initDifferentialDsn(dsns []string) error {
 		differentialTxes = append(differentialTxes, tx)
 	}
 	return nil
+}
+
+func covariant(txes []executor.Transaction) []executor.Executor {
+	execs := make([]executor.Executor, 0, len(txes))
+	for _, tx := range txes {
+		execs = append(execs, tx)
+	}
+	return execs
 }
