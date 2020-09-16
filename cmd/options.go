@@ -86,13 +86,14 @@ type (
 	}
 
 	TestOptions struct {
-		Round                   uint   `json:"round"`
-		NeedPrepare             bool   `json:"need_prepare"`
-		DisableCollectCardError bool   `json:"disable_collect_card_error"`
-		NoBench                 bool   `json:"no_bench"`
-		NoVerify                bool   `json:"no_verify"`
-		ReportFmt               string `json:"report_fmt"`
-		MaxPlans                uint64 `json:"max_plans"`
+		Round                   uint     `json:"round"`
+		NeedPrepare             bool     `json:"need_prepare"`
+		DisableCollectCardError bool     `json:"disable_collect_card_error"`
+		NoBench                 bool     `json:"no_bench"`
+		NoVerify                bool     `json:"no_verify"`
+		ReportFmt               string   `json:"report_fmt"`
+		MaxPlans                uint64   `json:"max_plans"`
+		DifferentialDsn         []string `json:"differential_dsn"`
 	}
 
 	CardOptions struct {

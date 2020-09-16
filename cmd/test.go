@@ -30,15 +30,27 @@ import (
 
 var (
 	testOptions = &options.Test
+
+	differentialPools = make([]executor.Pool, 0)
+	differentialTxes  = make([]executor.Transaction, 0)
 )
 
 func testCommand() *cli.Command {
+	differentialDsn := cli.NewStringSlice(testOptions.DifferentialDsn...)
 	return &cli.Command{
 		Name:   "test",
 		Usage:  "test the optimizer",
 		Action: test,
-		Before: initTx,
-		After:  rollback,
+		Before: func(context *cli.Context) error {
+			if err := initDifferentialDsn(differentialDsn.Value()); err != nil {
+				log.Warn(err.Error())
+			}
+			return initTx(context)
+		},
+		After: func(ctx *cli.Context) error {
+			testOptions.DifferentialDsn = differentialDsn.Value()
+			return rollback(ctx)
+		},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "prepare",
@@ -73,6 +85,13 @@ func testCommand() *cli.Command {
 				Usage:       "don't perform results verification",
 				Value:       testOptions.NoVerify,
 				Destination: &testOptions.NoVerify,
+			},
+			&cli.StringSliceFlag{
+				Name:        "differential-dsn",
+				Aliases:     []string{"dd"},
+				Usage:       "other `DSNs` for differential test",
+				Value:       differentialDsn,
+				Destination: differentialDsn,
 			},
 			&cli.BoolFlag{
 				Name:        "no-bench",
@@ -179,5 +198,21 @@ func prepare(workloadDir string, exec executor.Executor) error {
 	log.WithFields(log.Fields{
 		"workload dir": workloadDir,
 	}).Info("preparing finished")
+	return nil
+}
+
+func initDifferentialDsn(dsns []string) error {
+	for _, dsn := range dsns {
+		pool, err := executor.NewPool(dsn, &mainOptions.Pool)
+		if err != nil {
+			return fmt.Errorf("fail to open pool on dsn '%s': %s", dsn, err.Error())
+		}
+		tx, err := pool.Transaction()
+		if err != nil {
+			return fmt.Errorf("fail to start transaction on dsn '%s': %s", dsn, err.Error())
+		}
+		differentialPools = append(differentialPools, pool)
+		differentialTxes = append(differentialTxes, tx)
+	}
 	return nil
 }
