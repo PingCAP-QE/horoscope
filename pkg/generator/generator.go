@@ -45,6 +45,8 @@ var (
 			},
 		},
 	}
+
+	UnionOperator = ast.Union
 )
 
 func SumSelect(source ast.ResultSetNode) *ast.SelectStmt {
@@ -66,6 +68,7 @@ func SumSelect(source ast.ResultSetNode) *ast.SelectStmt {
 				Source: source,
 			},
 		}},
+		AfterSetOperator: &UnionOperator,
 	}
 }
 
@@ -149,8 +152,9 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 		SelectStmtOpts: &ast.SelectStmtOpts{
 			SQLCache: true,
 		},
-		Fields: &ast.FieldList{},
-		From:   tableRefs,
+		Fields:           &ast.FieldList{},
+		From:             tableRefs,
+		AfterSetOperator: &UnionOperator,
 	}
 
 	if twoColumns := RdTowColumns(columnsList); twoColumns != nil {
@@ -260,7 +264,7 @@ func (g *Generator) ComposeSelect(options Options, tables []string, columnsList 
 }
 
 func (g *Generator) ComposeUnion(options Options, tables []string, columnsList [][]*database.Column, composedStmt *ast.SelectStmt) (stmt *ast.SelectStmt, err error) {
-	selectList := []*ast.SelectStmt{nil, nil}
+	selectList := []ast.Node{nil, nil}
 	selectList[0], err = g.ComposeSelect(options, tables, columnsList, composedStmt)
 	if err != nil {
 		return
@@ -269,7 +273,9 @@ func (g *Generator) ComposeUnion(options Options, tables []string, columnsList [
 	if err != nil {
 		return
 	}
-	stmt = SumSelect(&ast.UnionStmt{SelectList: &ast.UnionSelectList{Selects: selectList}})
+
+	source := ast.SetOprStmt{SelectList: &ast.SetOprSelectList{Selects: selectList}}
+	stmt = SumSelect(&source)
 	return
 }
 
