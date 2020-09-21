@@ -14,6 +14,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
@@ -134,3 +135,10 @@ type (
 		UseBitArray bool   `json:"use_bit_array"`
 	}
 )
+
+func (options *TestOptions) Validate() error {
+	if options.Round == 0 {
+		return fmt.Errorf("test round cannot be zero")
+	}
+	return nil
+}

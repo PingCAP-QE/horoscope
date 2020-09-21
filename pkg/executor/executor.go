@@ -26,6 +26,7 @@ type (
 	QueryMode uint8
 
 	Pool interface {
+		Dsn() string
 		Executor() Executor
 		Transaction() (Transaction, error)
 	}
@@ -42,6 +43,7 @@ type (
 	}
 
 	Executor interface {
+		Dsn() string
 		Query(query string) (Rows, error)
 		QueryStream(query string) (RowStream, error)
 		Exec(query string) (Result, error)
@@ -63,10 +65,12 @@ type (
 	}
 
 	PoolImpl struct {
-		db *sql.DB
+		dsn string
+		db  *sql.DB
 	}
 
 	ExecutorImpl struct {
+		dsn  string
 		exec RawExecutor
 	}
 
@@ -95,9 +99,14 @@ func NewPool(dsn string, options *PoolOptions) (pool Pool, err error) {
 	}
 
 	pool = &PoolImpl{
-		db: db,
+		dsn: dsn,
+		db:  db,
 	}
 	return pool, err
+}
+
+func (e *ExecutorImpl) Dsn() string {
+	return e.dsn
 }
 
 func (e *ExecutorImpl) Query(query string) (rows Rows, err error) {
@@ -202,11 +211,15 @@ func (t *TransactionImpl) Rollback() error {
 	return t.tx.Rollback()
 }
 
+func (p *PoolImpl) Dsn() string {
+	return p.dsn
+}
+
 func (p *PoolImpl) Executor() Executor {
-	return &ExecutorImpl{exec: p.db}
+	return &ExecutorImpl{exec: p.db, dsn: p.dsn}
 }
 
 func (p *PoolImpl) Transaction() (Transaction, error) {
 	tx, err := p.db.Begin()
-	return &TransactionImpl{ExecutorImpl: ExecutorImpl{exec: tx}, tx: tx}, err
+	return &TransactionImpl{ExecutorImpl: ExecutorImpl{exec: tx, dsn: p.dsn}, tx: tx}, err
 }

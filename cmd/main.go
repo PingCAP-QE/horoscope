@@ -65,7 +65,16 @@ func main() {
 		}
 	}
 
-	app := &cli.App{
+	app := mainApp()
+
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func mainApp() *cli.App {
+	return &cli.App{
 		Name:  "horoscope",
 		Usage: "An optimizer inspector for DBMS",
 		Flags: []cli.Flag{
@@ -164,11 +173,6 @@ func main() {
 			splitCommand(),
 			loadCommand(),
 		},
-	}
-
-	err := app.Run(os.Args)
-	if err != nil {
-		log.Fatal(err)
 	}
 }
 

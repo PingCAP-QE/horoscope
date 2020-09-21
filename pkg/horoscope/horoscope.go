@@ -69,7 +69,8 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Ben
 	}).Info("complete plan collection")
 
 	benches.Round = round
-	cost, originList, err := h.RunSQLWithTime(benches.Round, benches.DefaultPlan.SQL, benches.Type)
+
+	cost, _, err := RunSQLWithTime(h.exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
 	if err != nil {
 		return
 	}
@@ -92,7 +93,7 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Ben
 
 	for _, plan := range benches.Plans {
 		var rows []executor.Comparable
-		cost, rows, err := h.RunSQLWithTime(round, plan.SQL, benches.Type)
+		cost, rows, err := RunSQLWithTime(h.exec, round, plan.SQL, benches.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -128,16 +129,41 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Ben
 			"hints":    plan.Hints,
 		}).Infof("complete execution plan%d", plan.Plan)
 	}
+
 	if verify {
-		err = verifyQueryResult(originList, rowsSet)
-		if err != nil {
-			panic(fmt.Sprintf("a critical error occurred for query %s: %v", qID, err))
+		var testOracle executor.Comparable
+		var verifyDsn string
+		for _, exec := range h.differentialExecs {
+			var results []executor.Comparable
+			_, results, err = RunSQLWithTime(exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
+			if err != nil {
+				return
+			}
+			if len(results) == 0 {
+				continue
+			}
+			if testOracle == nil {
+				testOracle = results[0]
+				verifyDsn = exec.Dsn()
+			}
+
+			for _, result := range results {
+				if !testOracle.Equal(result) {
+					benches.VerifiedFail = true
+					if exec.Dsn() == verifyDsn {
+						err = fmt.Errorf("results mismatch in different rounds of %s", verifyDsn)
+					} else {
+						err = fmt.Errorf("results mismatch in different DSN: %s <=> %s", verifyDsn, exec.Dsn())
+					}
+					return
+				}
+			}
 		}
 	}
 	return
 }
 
-func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Metrics, []executor.Comparable, error) {
+func RunSQLWithTime(exec executor.Executor, round uint, query string, tp QueryType) (*Metrics, []executor.Comparable, error) {
 	var (
 		costs = Metrics(benchstat.Metrics{
 			Unit: "ms",
@@ -156,9 +182,9 @@ func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Met
 		var rows executor.Comparable
 		switch tp {
 		case DQL:
-			rows, err = h.exec.Query(query)
+			rows, err = exec.Query(query)
 		case DML:
-			rows, err = h.exec.Exec(query)
+			rows, err = exec.Exec(query)
 		default:
 			panic("Next type should be checked in `collectPlans`")
 		}

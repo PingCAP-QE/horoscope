@@ -42,6 +42,9 @@ func testCommand() *cli.Command {
 		Usage:  "test the optimizer",
 		Action: test,
 		Before: func(context *cli.Context) error {
+			if err := testOptions.Validate(); err != nil {
+				return err
+			}
 			if err := initDifferentialDsn(differentialDsn.Value()); err != nil {
 				log.Warn(err.Error())
 			}
