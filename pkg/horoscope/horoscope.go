@@ -70,10 +70,12 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Ben
 
 	benches.Round = round
 
-	cost, _, err := RunSQLWithTime(h.exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
+	cost, originResultSets, err := RunSQLWithTime(h.exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
 	if err != nil {
 		return
 	}
+	testOracle := originResultSets[0]
+
 	benches.DefaultPlan.Cost = cost
 	if h.enableCollectCardError {
 		b, j, e := h.CollectCardinalityEstimationError(benches.DefaultPlan.SQL)
@@ -89,15 +91,12 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Ben
 		"hints":    benches.DefaultPlan.Hints,
 	}).Info("complete origin query")
 
-	rowsSet := make([][]executor.Comparable, 0)
-
 	for _, plan := range benches.Plans {
-		var rows []executor.Comparable
-		cost, rows, err := RunSQLWithTime(h.exec, round, plan.SQL, benches.Type)
+		var sets []executor.Comparable
+		cost, sets, err = RunSQLWithTime(h.exec, round, plan.SQL, benches.Type)
 		if err != nil {
 			return nil, err
 		}
-		rowsSet = append(rowsSet, rows)
 		plan.Cost = cost
 
 		if h.enableCollectCardError {
@@ -128,33 +127,30 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Ben
 			"cost":     fmt.Sprintf("%vms", cost.Values),
 			"hints":    plan.Hints,
 		}).Infof("complete execution plan%d", plan.Plan)
+
+		if verify {
+			for _, set := range sets {
+				if !testOracle.Equal(set) {
+					benches.VerifiedFail = true
+					err = fmt.Errorf("results mismatch in plan(%d)", plan.Plan)
+					return
+				}
+			}
+		}
 	}
 
 	if verify {
-		var testOracle executor.Comparable
-		var verifyDsn string
 		for _, exec := range h.differentialExecs {
 			var results []executor.Comparable
 			_, results, err = RunSQLWithTime(exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
 			if err != nil {
 				return
 			}
-			if len(results) == 0 {
-				continue
-			}
-			if testOracle == nil {
-				testOracle = results[0]
-				verifyDsn = exec.Dsn()
-			}
 
 			for _, result := range results {
 				if !testOracle.Equal(result) {
 					benches.VerifiedFail = true
-					if exec.Dsn() == verifyDsn {
-						err = fmt.Errorf("results mismatch in different rounds of %s", verifyDsn)
-					} else {
-						err = fmt.Errorf("results mismatch in different DSN: %s <=> %s", verifyDsn, exec.Dsn())
-					}
+					err = fmt.Errorf("results mismatch in different DSN: %s <=> %s", h.exec.Dsn(), exec.Dsn())
 					return
 				}
 			}
