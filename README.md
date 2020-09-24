@@ -70,7 +70,7 @@ horoscope is an optimizer inspector for DBMS.
     A custom data source name or workload directory is also supported:
 
     ```sh
-    horo -d "root@tcp(172.20.1.1)/test" -w workload init
+    horo -d "root@tcp(172.20.1.1)/test" -w . init
     ```
 
     All options will be saved in `horo.json` of current directory:
@@ -78,7 +78,7 @@ horoscope is an optimizer inspector for DBMS.
     ```json
     {
         "main": {
-            "workload": "workload",
+            "workload": ".",
             "dsn": "root@tcp(172.20.1.1:4000)/test",
             "json_formatter": false,
             "log_file": "",

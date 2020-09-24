@@ -22,7 +22,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/chaos-mesh/horoscope/pkg/horoscope"
-	"github.com/chaos-mesh/horoscope/pkg/loader"
 )
 
 func queryCommand() *cli.Command {
@@ -31,7 +30,7 @@ func queryCommand() *cli.Command {
 		Aliases: []string{"q"},
 		Usage:   "Execute a query",
 		Flags: []cli.Flag{
-			&cli.Int64Flag{
+			&cli.Uint64Flag{
 				Name:        "plan",
 				Aliases:     []string{"p"},
 				Usage:       "use plan by `ID`",
@@ -57,13 +56,12 @@ func queryCommand() *cli.Command {
 				return err
 			}
 
-			plan, err := horoscope.Plan(query, hints, options.Query.PlanID)
+			plan, err := horoscope.Plan(query, hints, int64(options.Query.PlanID))
 			if err != nil {
 				return err
 			}
 
-			horo := horoscope.NewHoroscope(Pool.Executor(), loader.NoopLoader{}, true)
-			dur, rows, err := horo.RunSQLWithTime(1, plan, tp)
+			dur, rows, err := horoscope.RunSQLWithTime(Pool.Executor(), 1, plan, tp)
 			if err != nil {
 				return err
 			}

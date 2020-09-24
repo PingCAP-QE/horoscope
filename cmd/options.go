@@ -14,6 +14,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/chaos-mesh/horoscope/pkg/executor"
@@ -23,7 +24,7 @@ import (
 var (
 	options = Options{
 		Main: MainOptions{
-			Workload: ".",
+			Workload: "workload",
 			Dsn:      "root:@tcp(localhost:4000)/test?charset=utf8",
 			Verbose:  "info",
 			Pool: executor.PoolOptions{
@@ -32,15 +33,16 @@ var (
 				MaxLifeSeconds: 10,
 			},
 		},
-		Bench: BenchOptions{
+		Test: TestOptions{
 			ReportFmt: "table",
 			Round:     1,
+			MaxPlans:  1000,
 		},
 		Card: CardOptions{
 			Typ: "emq",
 		},
 		Generate: GenerateOptions{
-			Mode:        "bench",
+			Mode:        GenBenchMode,
 			Queries:     20,
 			AndOpWeight: 3,
 			Generator: generator.Options{
@@ -65,7 +67,7 @@ var (
 type (
 	Options struct {
 		Main     MainOptions     `json:"main"`
-		Bench    BenchOptions    `json:"bench"`
+		Test     TestOptions     `json:"test"`
 		Card     CardOptions     `json:"card"`
 		Query    QueryOptions    `json:"query"`
 		Generate GenerateOptions `json:"generate"`
@@ -84,12 +86,15 @@ type (
 		Pool          executor.PoolOptions `json:"pool"`
 	}
 
-	BenchOptions struct {
-		Round                   uint   `json:"round"`
-		NeedPrepare             bool   `json:"need_prepare"`
-		DisableCollectCardError bool   `json:"disable_collect_card_error"`
-		NoVerify                bool   `json:"no_verify"`
-		ReportFmt               string `json:"report_fmt"`
+	TestOptions struct {
+		Round                   uint     `json:"round"`
+		NeedPrepare             bool     `json:"need_prepare"`
+		DisableCollectCardError bool     `json:"disable_collect_card_error"`
+		NoBench                 bool     `json:"no_bench"`
+		NoVerify                bool     `json:"no_verify"`
+		ReportFmt               string   `json:"report_fmt"`
+		MaxPlans                uint64   `json:"max_plans"`
+		DifferentialDsn         []string `json:"differential_dsn"`
 	}
 
 	CardOptions struct {
@@ -99,7 +104,7 @@ type (
 	}
 
 	QueryOptions struct {
-		PlanID int64 `json:"plan_id"`
+		PlanID uint64 `json:"plan_id"`
 	}
 
 	GenerateOptions struct {
@@ -130,3 +135,10 @@ type (
 		UseBitArray bool   `json:"use_bit_array"`
 	}
 )
+
+func (options *TestOptions) Validate() error {
+	if options.Round == 0 {
+		return fmt.Errorf("test round cannot be zero")
+	}
+	return nil
+}

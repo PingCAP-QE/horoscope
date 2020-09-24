@@ -41,23 +41,24 @@ var (
 type (
 	Horoscope struct {
 		exec                   executor.Executor
+		differentialExecs      []executor.Executor
 		loader                 loader.QueryLoader
 		enableCollectCardError bool
 	}
 	QueryType uint8
 )
 
-func NewHoroscope(exec executor.Executor, loader loader.QueryLoader, enableCollectCardError bool) *Horoscope {
-	return &Horoscope{exec: exec, loader: loader, enableCollectCardError: enableCollectCardError}
+func NewHoroscope(exec executor.Executor, differentialExecs []executor.Executor, loader loader.QueryLoader, enableCollectCardError bool) *Horoscope {
+	return &Horoscope{exec: exec, differentialExecs: differentialExecs, loader: loader, enableCollectCardError: enableCollectCardError}
 }
 
-func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) {
+func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Benches, err error) {
 	qID, query := h.loader.Next()
 	if query == nil {
 		return
 	}
 
-	benches, err = h.collectPlans(qID, query)
+	benches, err = h.collectPlans(qID, query, maxPlans)
 	if err != nil {
 		return
 	}
@@ -68,10 +69,13 @@ func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) 
 	}).Info("complete plan collection")
 
 	benches.Round = round
-	cost, originList, err := h.RunSQLWithTime(benches.Round, benches.DefaultPlan.SQL, benches.Type)
+
+	cost, originResultSets, err := RunSQLWithTime(h.exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
 	if err != nil {
 		return
 	}
+	testOracle := originResultSets[0]
+
 	benches.DefaultPlan.Cost = cost
 	if h.enableCollectCardError {
 		b, j, e := h.CollectCardinalityEstimationError(benches.DefaultPlan.SQL)
@@ -87,15 +91,12 @@ func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) 
 		"hints":    benches.DefaultPlan.Hints,
 	}).Info("complete origin query")
 
-	rowsSet := make([][]executor.Comparable, 0)
-
 	for _, plan := range benches.Plans {
-		var rows []executor.Comparable
-		cost, rows, err := h.RunSQLWithTime(round, plan.SQL, benches.Type)
+		var sets []executor.Comparable
+		cost, sets, err = RunSQLWithTime(h.exec, round, plan.SQL, benches.Type)
 		if err != nil {
 			return nil, err
 		}
-		rowsSet = append(rowsSet, rows)
 		plan.Cost = cost
 
 		if h.enableCollectCardError {
@@ -126,17 +127,39 @@ func (h *Horoscope) Next(round uint, verify bool) (benches *Benches, err error) 
 			"cost":     fmt.Sprintf("%vms", cost.Values),
 			"hints":    plan.Hints,
 		}).Infof("complete execution plan%d", plan.Plan)
+
+		if verify {
+			for _, set := range sets {
+				if !testOracle.Equal(set) {
+					benches.VerifiedFail = true
+					err = fmt.Errorf("results mismatch in plan(%d)", plan.Plan)
+					return
+				}
+			}
+		}
 	}
+
 	if verify {
-		err = verifyQueryResult(originList, rowsSet)
-		if err != nil {
-			panic(fmt.Sprintf("a critical error occurred for query %s: %v", qID, err))
+		for _, exec := range h.differentialExecs {
+			var results []executor.Comparable
+			_, results, err = RunSQLWithTime(exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
+			if err != nil {
+				return
+			}
+
+			for _, result := range results {
+				if !testOracle.Equal(result) {
+					benches.VerifiedFail = true
+					err = fmt.Errorf("results mismatch in different DSN: %s <=> %s", h.exec.Dsn(), exec.Dsn())
+					return
+				}
+			}
 		}
 	}
 	return
 }
 
-func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Metrics, []executor.Comparable, error) {
+func RunSQLWithTime(exec executor.Executor, round uint, query string, tp QueryType) (*Metrics, []executor.Comparable, error) {
 	var (
 		costs = Metrics(benchstat.Metrics{
 			Unit: "ms",
@@ -155,9 +178,9 @@ func (h *Horoscope) RunSQLWithTime(round uint, query string, tp QueryType) (*Met
 		var rows executor.Comparable
 		switch tp {
 		case DQL:
-			rows, err = h.exec.Query(query)
+			rows, err = exec.Query(query)
 		case DML:
-			rows, err = h.exec.Exec(query)
+			rows, err = exec.Exec(query)
 		default:
 			panic("Next type should be checked in `collectPlans`")
 		}
@@ -188,7 +211,7 @@ func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable [
 	return
 }
 
-func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *Benches, err error) {
+func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, maxPlans uint64) (benches *Benches, err error) {
 	sql, err := utils.BufferOut(query)
 	if err != nil {
 		return
@@ -223,12 +246,12 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 		return
 	}
 
-	var id int64 = 1
-	for ; ; id++ {
+	var id uint64 = 1
+	for ; id <= maxPlans; id++ {
 		var plan string
 		var warnings []error
 
-		plan, err = Plan(query, optHints, id)
+		plan, err = Plan(query, optHints, int64(id))
 		if err != nil {
 			return
 		}
@@ -261,6 +284,7 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode) (benches *B
 				SQL:         plan,
 			})
 	}
+	return
 }
 
 func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
@@ -349,7 +373,7 @@ func IsSubOptimal(defPlan *Bench, plan *Bench) bool {
 		Mean:    currentPlanCost.Mean,
 		Max:     currentPlanCost.Max,
 	})
-	if testErr != nil || testErr == nil && pVal < alpha {
+	if testErr != nil || pVal < alpha {
 		return true
 	}
 	return false

@@ -25,16 +25,17 @@ import (
 )
 
 type Benches struct {
-	QueryID     string
-	Query       ast.StmtNode
-	Type        QueryType
-	Round       uint
-	DefaultPlan Bench
-	Plans       []*Bench
+	VerifiedFail bool
+	QueryID      string
+	Query        ast.StmtNode
+	Type         QueryType
+	Round        uint
+	DefaultPlan  Bench
+	Plans        []*Bench
 }
 
 type Bench struct {
-	Plan        int64
+	Plan        uint64
 	SQL         string
 	Hints       executor.Hints
 	Explanation executor.Rows
