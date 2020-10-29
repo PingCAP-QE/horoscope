@@ -88,7 +88,7 @@ func (c *Cardinalitor) testEMQ(ctx context.Context, tableName, columnName string
 	metrics["most_common_10%"] = &Metrics{}
 	metrics["least_common_10%"] = &Metrics{}
 
-	rows, err := c.exec.Query(fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName))
+	rows, err := c.exec.Query(fmt.Sprintf("SELECT COUNT(DISTINCT(%s)) FROM %s", columnName, tableName))
 	if err != nil {
 		return nil, fmt.Errorf("fetch total count error: %v", err)
 	}
@@ -104,15 +104,20 @@ func (c *Cardinalitor) testEMQ(ctx context.Context, tableName, columnName string
 	}
 	mcvs := make(map[string]struct{})
 	for _, d := range rows.Data {
-		mcvs[string(d[0][0])] = struct{}{}
+		mcvs[string(d[0])] = struct{}{}
 	}
 	rows, err = c.exec.Query(fmt.Sprintf("SELECT %s FROM %s GROUP BY %s ORDER BY COUNT(*) LIMIT %v", columnName, tableName, columnName, p10))
 	if err != nil {
-		return nil, fmt.Errorf("fetch most common values error: %v", err)
+		return nil, fmt.Errorf("fetch least common values error: %v", err)
 	}
 	lcvs := make(map[string]struct{})
 	for _, d := range rows.Data {
-		lcvs[string(d[0][0])] = struct{}{}
+		lcvs[string(d[0])] = struct{}{}
+	}
+
+	rows, err = c.exec.Query(fmt.Sprintf("SELECT DISTINCT(%s) FROM %s", columnName, tableName))
+	if err != nil {
+		return nil, fmt.Errorf("fetch distinct error: %v", err)
 	}
 
 	rowCh := make(chan executor.Row, defaultConcurrency)
@@ -138,6 +143,9 @@ func (c *Cardinalitor) testEMQ(ctx context.Context, tableName, columnName string
 					return
 				}
 				cis := executor.CollectEstAndActRows(executor.NewExplainAnalyzeInfo(rows))
+				if len(cis) == 0 {
+					continue
+				}
 				qError := cis[0].QError
 				if qError != math.Inf(1) {
 					mLock.Lock()
