@@ -84,17 +84,19 @@ func testCard(*cli.Context) error {
 	return nil
 }
 
-func renderCardTable(coll map[string]map[string]*horoscope.Metrics) string {
+func renderCardTable(coll map[string]map[string]map[string]*horoscope.Metrics) string {
 	t := table.NewWriter()
-	t.AppendHeader(table.Row{"Table", "Column", "<= 2", "<= 3", "<= 4", "> 4", "max q-error"})
+	t.AppendHeader(table.Row{"Table", "Column", "Type", "<= 2", "<= 3", "<= 4", "<= 5", "<= 6", "<= 7", "<= 8", "<= 9", "<= 10", "> 10", "max q-error"})
 	for tableName, tbl := range coll {
-		for columnName, m := range tbl {
-			s := &stats.Sample{Xs: m.Values}
-			s.Sort()
-			c2, c3, c4 := countOf(s, 2), countOf(s, 3), countOf(s, 4)
+		for columnName, mt := range tbl {
+			for typeName, m := range mt {
+				s := &stats.Sample{Xs: m.Values}
+				s.Sort()
+				c2, c3, c4, c5, c6, c7, c8, c9, c10 := countOf(s, 2), countOf(s, 3), countOf(s, 4), countOf(s, 5), countOf(s, 6), countOf(s, 7), countOf(s, 8), countOf(s, 9), countOf(s, 10)
 
-			cb4, max := len(m.Values)-c4, s.Quantile(1)
-			t.AppendRow(table.Row{tableName, columnName, c2, c3 - c2, c4 - c3, cb4, max})
+				cb10, max := len(m.Values)-c10, s.Quantile(1)
+				t.AppendRow(table.Row{tableName, columnName, typeName, c2, c3 - c2, c4 - c3, c5 - c4, c6 - c5, c7 - c6, c8 - c7, c9 - c8, c10 - c9, cb10, max})
+			}
 		}
 	}
 	return t.Render()
