@@ -38,6 +38,11 @@ var (
 	PlanHint = model.NewCIStr("NTH_PLAN")
 )
 
+// ServerError wraps server error
+type ServerError struct {
+	error
+}
+
 type (
 	Horoscope struct {
 		exec                   executor.Executor
@@ -52,7 +57,7 @@ func NewHoroscope(exec executor.Executor, differentialExecs []executor.Executor,
 	return &Horoscope{exec: exec, differentialExecs: differentialExecs, loader: loader, enableCollectCardError: enableCollectCardError}
 }
 
-func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Benches, err error) {
+func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool, ignoreServerError bool) (benches *Benches, err error) {
 	qID, query := h.loader.Next()
 	if query == nil {
 		return
@@ -95,6 +100,9 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool) (benches *Ben
 		var sets []executor.Comparable
 		cost, sets, err = RunSQLWithTime(h.exec, round, plan.SQL, benches.Type)
 		if err != nil {
+			if _, serverError := err.(ServerError); serverError && ignoreServerError {
+				continue
+			}
 			return nil, err
 		}
 		plan.Cost = cost
@@ -185,14 +193,14 @@ func RunSQLWithTime(exec executor.Executor, round uint, query string, tp QueryTy
 			panic("Next type should be checked in `collectPlans`")
 		}
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, ServerError{err}
 		}
 		costs.Values = append(costs.Values, float64(time.Since(start).Microseconds()/1000))
 		list = append(list, rows)
 	}
 
 	costs.computeStats()
-	return &costs, list, err
+	return &costs, list, nil
 }
 
 func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable []*executor.CardinalityInfo, join []*executor.CardinalityInfo, err error) {
@@ -354,6 +362,10 @@ func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.T
 
 func IsSubOptimal(defPlan *Bench, plan *Bench) bool {
 	const alpha, thresholdPct = 0.05, 0.9
+	// Some plans failed because of server errors, ignore this case
+	if plan.Cost == nil {
+		return false
+	}
 	if plan.Cost.Mean >= thresholdPct*defPlan.Cost.Mean {
 		return false
 	}
