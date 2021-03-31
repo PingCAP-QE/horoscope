@@ -34,9 +34,10 @@ var (
 			},
 		},
 		Test: TestOptions{
-			ReportFmt: "table",
-			Round:     1,
-			MaxPlans:  1000,
+			ReportFmt:         "table",
+			Round:             1,
+			MaxPlans:          1000,
+			IgnoreServerError: false,
 		},
 		Card: CardOptions{
 			Typ: "emq",
@@ -95,6 +96,7 @@ type (
 		ReportFmt               string   `json:"report_fmt"`
 		MaxPlans                uint64   `json:"max_plans"`
 		DifferentialDsn         []string `json:"differential_dsn"`
+		IgnoreServerError       bool     `json:"ignore_server_error"`
 	}
 
 	CardOptions struct {

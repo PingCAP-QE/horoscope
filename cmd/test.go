@@ -89,6 +89,12 @@ func testCommand() *cli.Command {
 				Value:       testOptions.NoVerify,
 				Destination: &testOptions.NoVerify,
 			},
+			&cli.BoolFlag{
+				Name:        "ignore-server-error",
+				Usage:       "ignore server error",
+				Value:       testOptions.IgnoreServerError,
+				Destination: &testOptions.IgnoreServerError,
+			},
 			&cli.StringSliceFlag{
 				Name:        "differential-dsn",
 				Aliases:     []string{"dd"},
@@ -127,7 +133,7 @@ func test(*cli.Context) error {
 	horo := horoscope.NewHoroscope(Tx, covariant(differentialTxes), newLoader, !testOptions.DisableCollectCardError)
 	collection := make(horoscope.BenchCollection, 0)
 	for {
-		benches, err := horo.Next(testOptions.Round, testOptions.MaxPlans, !testOptions.NoVerify)
+		benches, err := horo.Next(testOptions.Round, testOptions.MaxPlans, !testOptions.NoVerify, testOptions.IgnoreServerError)
 		if err != nil {
 			if benches != nil {
 				log.WithFields(log.Fields{
@@ -143,6 +149,9 @@ func test(*cli.Context) error {
 			if strings.Contains(err.Error(), "connection refused") ||
 				strings.Contains(err.Error(), "invalid connection") {
 				time.Sleep(2 * time.Minute)
+				continue
+			}
+			if _, serverError := err.(horoscope.ServerError); serverError && testOptions.IgnoreServerError {
 				continue
 			}
 			return err
