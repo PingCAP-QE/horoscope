@@ -1,6 +1,6 @@
 #!/bin/sh
 
-version=0.9.2
+version=1.0.0
 
 case $(uname -s) in
     Linux|linux) os=linux ;;
@@ -72,3 +72,4 @@ echo "Installed path: ${bold}$bin_dir/horo${sgr0}"
 echo "==============================================="
 echo "Have a try:     ${bold}horo -h ${sgr0}"
 echo "==============================================="
+
