@@ -14,7 +14,6 @@
 package horoscope
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -45,19 +44,26 @@ type ServerError struct {
 
 type (
 	Horoscope struct {
-		exec                   executor.Executor
-		differentialExecs      []executor.Executor
+		exec                   executor.Pool
+		differentialExecs      []executor.Pool
 		loader                 loader.QueryLoader
 		enableCollectCardError bool
+		explicitTxn            bool
 	}
 	QueryType uint8
 )
 
-func NewHoroscope(exec executor.Executor, differentialExecs []executor.Executor, loader loader.QueryLoader, enableCollectCardError bool) *Horoscope {
+func NewHoroscope(exec executor.Pool, differentialExecs []executor.Pool, loader loader.QueryLoader, enableCollectCardError bool) *Horoscope {
 	return &Horoscope{exec: exec, differentialExecs: differentialExecs, loader: loader, enableCollectCardError: enableCollectCardError}
 }
 
 func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool, ignoreServerError bool) (benches *Benches, err error) {
+	exec, closeFunc, err := newExecutorFromPool(h.exec, h.explicitTxn)
+	if err != nil {
+		return nil, fmt.Errorf("create an executor failed: %v", err)
+	}
+	defer closeFunc()
+
 	qID, query := h.loader.Next()
 	if query == nil {
 		return
@@ -75,7 +81,7 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool, ignoreServerE
 
 	benches.Round = round
 
-	cost, originResultSets, err := RunSQLWithTime(h.exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
+	cost, originResultSets, err := RunSQLWithTime(exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
 	if err != nil {
 		return
 	}
@@ -98,7 +104,7 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool, ignoreServerE
 
 	for _, plan := range benches.Plans {
 		var sets []executor.Comparable
-		cost, sets, err = RunSQLWithTime(h.exec, round, plan.SQL, benches.Type)
+		cost, sets, err = RunSQLWithTime(exec, round, plan.SQL, benches.Type)
 		if err != nil {
 			if _, serverError := err.(ServerError); serverError && ignoreServerError {
 				continue
@@ -148,9 +154,16 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool, ignoreServerE
 	}
 
 	if verify {
-		for _, exec := range h.differentialExecs {
+		for _, pool := range h.differentialExecs {
 			var results []executor.Comparable
-			_, results, err = RunSQLWithTime(exec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
+			var dExec executor.Executor
+			var dCloseFunc func()
+			dExec, dCloseFunc, err = newExecutorFromPool(pool, h.explicitTxn)
+			if err != nil {
+				return
+			}
+			defer dCloseFunc()
+			_, results, err = RunSQLWithTime(dExec, benches.Round, benches.DefaultPlan.SQL, benches.Type)
 			if err != nil {
 				return
 			}
@@ -158,7 +171,7 @@ func (h *Horoscope) Next(round uint, maxPlans uint64, verify bool, ignoreServerE
 			for _, result := range results {
 				if !testOracle.Equal(result) {
 					benches.VerifiedFail = true
-					err = fmt.Errorf("results mismatch in different DSN: %s <=> %s", h.exec.Dsn(), exec.Dsn())
+					err = fmt.Errorf("results mismatch in different DSN: %s <=> %s", exec.Dsn(), dExec.Dsn())
 					return
 				}
 			}
@@ -204,7 +217,7 @@ func RunSQLWithTime(exec executor.Executor, round uint, query string, tp QueryTy
 }
 
 func (h *Horoscope) CollectCardinalityEstimationError(query string) (baseTable []*executor.CardinalityInfo, join []*executor.CardinalityInfo, err error) {
-	rows, _, err := h.exec.ExplainAnalyze(query)
+	rows, _, err := h.exec.Executor().ExplainAnalyze(query)
 	if err != nil {
 		return nil, nil, fmt.Errorf("explain analyze error: %v", err)
 	}
@@ -225,12 +238,12 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, maxPlans ui
 		return
 	}
 
-	hints, err := h.exec.GetHints(sql)
+	hints, err := h.exec.Executor().GetHints(sql)
 	if err != nil {
 		return
 	}
 
-	explanation, _, err := h.exec.Explain(sql)
+	explanation, _, err := h.exec.Executor().Explain(sql)
 	if err != nil {
 		return
 	}
@@ -264,7 +277,7 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, maxPlans ui
 			return
 		}
 
-		explanation, warnings, err = h.exec.Explain(plan)
+		explanation, warnings, err = h.exec.Executor().Explain(plan)
 		if err != nil {
 			return
 		}
@@ -275,7 +288,7 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, maxPlans ui
 			}
 		}
 
-		hints, err = h.exec.GetHints(plan)
+		hints, err = h.exec.Executor().GetHints(plan)
 		if err != nil {
 			return
 		}
@@ -295,33 +308,22 @@ func (h *Horoscope) collectPlans(queryID string, query ast.StmtNode, maxPlans ui
 	return
 }
 
+func newExecutorFromPool(pool executor.Pool, explicitTxn bool) (exec executor.Executor, closeFunc func(), err error) {
+	if explicitTxn {
+		exec, err := pool.Transaction()
+		return exec, func() {
+			exec.Rollback()
+		}, err
+	}
+	return pool.Executor(), func() {}, nil
+}
+
 func findPlanHint(hints []*ast.TableOptimizerHint) *ast.TableOptimizerHint {
 	if len(hints) > 0 {
 		for _, hint := range hints {
 			if hint.HintName.L == PlanHint.L {
 				return hint
 			}
-		}
-	}
-	return nil
-}
-
-func verifyQueryResult(origin []executor.Comparable, lists [][]executor.Comparable) (err error) {
-	for _, list := range lists {
-		if err = verifyList(origin, list); err != nil {
-			return err
-		}
-	}
-	return
-}
-
-func verifyList(one, other []executor.Comparable) error {
-	if len(one) != len(other) {
-		return fmt.Errorf("have different result sets: %v vs %v", len(one), len(other))
-	}
-	for i, column := range one {
-		if !column.Equal(other[i]) {
-			return fmt.Errorf("result 1: \n%s\nresult 2: \n%s\n", column.String(), other[i].String())
 		}
 	}
 	return nil
@@ -355,7 +357,7 @@ func AnalyzeQuery(query ast.StmtNode, sql string) (tp QueryType, hints *[]*ast.T
 		tp = DML
 		hints = &stmt.TableHints
 	default:
-		err = errors.New(fmt.Sprintf("Unsupported query: %s", sql))
+		err = fmt.Errorf("unsupported query: %s", sql)
 	}
 	return
 }
