@@ -32,7 +32,6 @@ var (
 	testOptions = &options.Test
 
 	differentialPools = make([]executor.Pool, 0)
-	differentialTxes  = make([]executor.Transaction, 0)
 )
 
 func testCommand() *cli.Command {
@@ -130,7 +129,7 @@ func test(*cli.Context) error {
 		return err
 	}
 
-	horo := horoscope.NewHoroscope(Tx, covariant(differentialTxes), newLoader, !testOptions.DisableCollectCardError)
+	horo := horoscope.NewHoroscope(Pool, differentialPools, newLoader, !testOptions.DisableCollectCardError)
 	collection := make(horoscope.BenchCollection, 0)
 	for {
 		benches, err := horo.Next(testOptions.Round, testOptions.MaxPlans, !testOptions.NoVerify, testOptions.IgnoreServerError)
@@ -226,20 +225,7 @@ func initDifferentialDsn(dsns []string) error {
 		if err != nil {
 			return fmt.Errorf("fail to open pool on dsn '%s': %s", dsn, err.Error())
 		}
-		tx, err := pool.Transaction()
-		if err != nil {
-			return fmt.Errorf("fail to start transaction on dsn '%s': %s", dsn, err.Error())
-		}
 		differentialPools = append(differentialPools, pool)
-		differentialTxes = append(differentialTxes, tx)
 	}
 	return nil
-}
-
-func covariant(txes []executor.Transaction) []executor.Executor {
-	execs := make([]executor.Executor, 0, len(txes))
-	for _, tx := range txes {
-		execs = append(execs, tx)
-	}
-	return execs
 }

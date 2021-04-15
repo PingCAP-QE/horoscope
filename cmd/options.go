@@ -97,6 +97,7 @@ type (
 		MaxPlans                uint64   `json:"max_plans"`
 		DifferentialDsn         []string `json:"differential_dsn"`
 		IgnoreServerError       bool     `json:"ignore_server_error"`
+		ExplicitTxn             bool     `json:"explicit_txn"`
 	}
 
 	CardOptions struct {
